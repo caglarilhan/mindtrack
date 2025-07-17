@@ -139,6 +139,4 @@ if __name__ == "__main__":
         "TAVHL.IS", "SOKM.IS", "TOASO.IS", "GUBRF.IS", "OYAKC.IS",
         "MGROS.IS", "ULKER.IS", "ARCLK.IS", "KOZAA.IS", "VESTL.IS"
     ]
-    results = scan_and_write_early_warnings(symbols, twitter_keys, reddit_keys, newsapi_key)
-    for r in results:
-        print(r) 
+    results = scan_and_write_early_warnings(symbols, twitter_keys, reddit_keys, newsapi_key) 

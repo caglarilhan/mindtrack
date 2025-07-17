@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from market_data_service import fetch_prices, detect_bullish_signals
+from market_data_service import fetch_prices_modular, detect_bullish_signals
 from news_sentiment_service import NewsSentimentService
 from early_warning_engine import scan_and_write_early_warnings
 
@@ -20,7 +20,7 @@ news_service = NewsSentimentService()
 
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 BIST AI Backend başlatıldı!")
+    print("680 BIST AI Backend başlatıldı!")
 
 @app.get("/")
 async def root():
@@ -36,7 +36,7 @@ async def health_check():
 
 @app.get("/price/{symbol}")
 def get_price(symbol: str):
-    prices = fetch_prices([symbol])
+    prices = fetch_prices_modular([symbol])
     return { "symbol": symbol, "price": prices.get(symbol) }
 
 @app.get("/api/news-sentiment")
