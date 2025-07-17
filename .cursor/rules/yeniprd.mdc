@@ -1,0 +1,188 @@
+Borsa İstanbul İçin Ücretsiz ve Açık Kaynak Araçlarla Analiz Gücünü Artırma
+
+Finansal yazılımınızı güçlendirmek ve kazancınızı artırmak için, Python ekosisteminde ücretsiz veya açık kaynaklı birçok araç entegre edebilirsiniz. Bu araçlar; teknik analiz indikatörleri ve formasyon algılama, makine öğrenimi ve yapay zekâ modelleri, portföy optimizasyonu, LLM/GPT tabanlı finansal asistanlar ve görsel panolar ile uyarı sistemleri gibi geniş bir yelpazeye yayılıyor. Aşağıda, özellikle Borsa İstanbul (BIST) verileriyle çalışmaya uygun bu araçları ve yöntemleri ana başlıklar halinde ele alıyoruz. (Not: Belirtilen araçların çoğu piyasa bağımsız çalışır; yani doğru veri sağlandığında sadece BIST için değil ABD borsaları veya kripto piyasaları için de kullanılabilirler. Python tabanlı olduklarından entegrasyonları kolaydır ve GitHub üzerinde açık kaynak kod olarak bulunurlar.)
+
+Teknik Analiz Kütüphaneleri ve Formasyon Algılama Araçları
+
+Teknik analiz indikatörleri için en popüler açık kaynak kütüphanelerden biri TA-Lib’tır. TA-Lib, 200’den fazla teknik indikatörü (ADX, MACD, RSI, Stochastic, Bollinger Bands vb.) hesaplayabilir ve ayrıca mum çubuğu formasyonlarını tanıyabilir ￼. TA-Lib’ın çekirdek kodu C/C++ ile yazılmış olup Python API’si üzerinden kullanılabiliyor; BSD lisansı ile ücretsiz sunulduğu için hem açık kaynak hem ticari projelere entegre etmek serbesttir ￼. Python için alternatif olarak, Pandas TA ve “ta” gibi kütüphaneler de vardır – bunlar Pandas veri çerçeveleri üzerinde kolayca teknik gösterge hesaplamanıza imkân tanır ￼. Bu kütüphaneler sayesinde fiyat verileriniz üzerinde ortalamalar, osilatörler, trend indikatörleri gibi klasik teknik analiz araçlarını zahmetsizce uygulayabilirsiniz.
+
+Otomatik formasyon (chart pattern) algılama konusunda da ücretsiz araçlar mevcuttur. Örneğin PatternPy adlı Python paketi, omuz-baş-omuz gibi karmaşık formasyonları, çift tepe-dipleri, yatay destek-direnç seviyelerini vb. tarihsel OHLCV fiyat datasında yüksek hızda tespit etmeye yardımcı olur ￼. Pandas ve NumPy üzerinde çalışarak büyük veri setlerinde bile hızlı tarama yapabilir; amaç teknik formasyonları insan hatasından bağımsız, otomatik ve tutarlı bir şekilde yakalamaktır ￼. Daha ileri seviye bir örnek olarak, ChartScanAI projesi makine öğrenimi (YOLOv8 derin öğrenme modeli) kullanarak grafiklerdeki desenleri otomatik tanır ve al/sat sinyalleri üretebilir ￼. ChartScanAI, gerçek zamanlı analiz ve yüksek doğrulukla çalışan, Streamlit tabanlı bir uygulama olarak sunulmuştur ￼. Bu tür araçlar sayesinde grafik formasyonlarını elle aramak yerine kodla tarayabilir, fırsatları kaçırmadan yakalayabilirsiniz.
+
+Makine Öğrenimi ve Yapay Zekâ Modelleri
+
+Borsa İstanbul gibi piyasalarda ileri seviye analiz için makine öğrenimi (ML) ve yapay zekâ yaklaşımlarını entegre etmek büyük avantaj sağlayabilir. Python ekosisteminde scikit-learn, TensorFlow, PyTorch gibi kütüphaneler sıfırdan model geliştirmek için temel sağlarken, finans piyasalarına özel bazı açık kaynak projeler de bulunmaktadır:
+	•	FinRL (Financial Reinforcement Learning Library) özellikle algoritmik trading için derin pekiştirmeli öğrenme modelleri sunan açık kaynak bir projedir ￼. FinRL, finansal zaman serilerinde al-sat kararları vermeyi öğrenen ajanlar geliştirmek için hazır ortamlar ve algoritmalar içerir (NeurIPS 2020 çalışması olarak ortaya çıkmıştır).
+	•	Bulbea adlı kütüphane ise derin öğrenmeyi kullanarak hisse senedi fiyat tahmini ve modellemesi yapmaya yönelik bir Python kütüphanesidir ￼. Bu tür derin öğrenme tabanlı araçlar, tarihsel veriden karmaşık ilişkileri öğrenerek geleceğe yönelik getiri veya sinyal tahminleri yapmayı hedefler.
+	•	Qlib platformu, Microsoft tarafından açık kaynak olarak sunulmuş kapsamlı bir “AI-oriented” yatırım platformudur. Veri hazırlama, model eğitimi, backtest (geriye dönük test) gibi tüm süreci kapsayan bir altyapı sağlar ￼. Qlib, yalnızca hisse senedi “alpha” sinyalleri üretmeyi değil, risk modeli oluşturma, portföy optimizasyonu ve emir yürütme gibi zincirin diğer halkalarını da kapsayan uçtan uca bir çözüm sunar ￼.
+	•	Makine öğrenimi alanında ayrıca mlfinlab (Lopez de Prado’nun Advances in Financial Machine Learning kitabındaki yöntemlerin uygulamaları) gibi paketler, Stock-Prediction-Models gibi topluluk projeleri, ve Awesome-Quant gibi kapsamlı listelerde derlenmiş daha birçok araç bulunur. Örneğin Wilson Freitas’ın hazırladığı awesome-quant listesinde, finans verisi analizi ve trading algoritmaları için pek çok Python kütüphanesi derlenmiştir ￼ ￼. Bu liste, teknik indikatörlerden (ör. talipp, finta), backtest altyapılarına (ör. Backtrader, Zipline) ve ML uygulamalarına kadar geniş bir yelpazede araçları keşfetmek için yararlıdır.
+
+Özetle, Python dünyasında ücretsiz ML araçları ile BIST verilerini kullanarak modelleme yapmak mümkündür. İster zaman serisi tahmini (ör. ARIMA, Prophet), ister derin öğrenmeyle fiyat yönü tahmini, ister haber/sosyal medya metinlerinden duygu analizi olsun – uygun açık kaynak model ve kütüphaneler bulunmaktadır. Aşağıdaki bölümlerde finans NLP ve chatbot için özel modellere de değineceğiz.
+
+Portföy Yönetimi ve Optimizasyon Araçları
+
+Bir yatırım portföyünün yönetimi ve getiri-risk optimizasyonu için de açık kaynak araçlar mevcuttur. Özellikle Modern Portföy Teorisi (Markowitz’in efficient frontier kavramı) ve türevlerini uygulamak isterseniz, Python’daki PyPortfolioOpt kütüphanesi güçlü bir seçenektir. PyPortfolioOpt, finansal portföy optimizasyonu için klasik efficiency frontier hesaplamalarından Black-Litterman gibi gelişmiş yöntemlere kadar pek çok yaklaşımı destekler ￼. Bu kütüphane ile hisse senetleri arasındaki kovaryansları hesaplayarak farklı risk seviyeleri için optimum ağırlık dağılımlarını kolayca elde edebilirsiniz ￼. Üstelik açık kaynak olduğu için kendi verilerinizle (örneğin BIST hisselerinin getiri serileriyle) entegre edip sonuçları alabilirsiniz.
+
+Portföy analizi alanında kullanabileceğiniz diğer ücretsiz araçlar arasında QuantStats ve Pyfolio gibi paketler de bulunuyor. QuantStats, bir portföyün geçmiş performansını detaylı bir rapor olarak sunabilir; keskin oranı, maksimum düşüş (drawdown), yıllık volatilite gibi risk-getiri metriklerini ve bunların grafiklerini otomatik olarak üretir. riskparity.py gibi kütüphaneler risk parity (riske göre dengeleme) yaklaşımlarıyla alternatif optimizasyon yöntemleri sunar ￼. Ayrıca sklearn tarzı bir arayüz sunan skfolio paketi, portföy modellerini makine öğrenimi ile entegre şekilde inşa etmeye imkan tanır ￼.
+
+Eğer portföy yönetimini algoritmik trading sisteminin bir parçası olarak düşünüyorsanız, backtesting (geriye dönük test) yaparak stratejilerinizi portföy düzeyinde sınamak önemlidir. Bu amaçla Backtrader, Zipline, QSTrader gibi birçok açık kaynak backtest motoru bulunur ￼ ￼. Bu araçlar, stratejinizin geçmiş veride nasıl performans gösterdiğini, portföy değerinin zamanla nasıl değiştiğini, kazanç/kayıp dağılımını vb. analiz etmenizi sağlar. Böylece optimizasyon ve strateji tasarım döngüsünü sağlam bir şekilde kurabilirsiniz.
+
+Chatbot ve GPT Destekli Finansal Asistanlar
+
+Son dönemde büyük dil modellerinin (LLM’ler) gelişimiyle birlikte, finans alanında da yapay zekâ destekli asistanlar mümkün hale geldi. Bu asistanlar, doğal dilde soruları yanıtlayabilir, piyasa haberlerini özetleyebilir veya kullanıcıya özel finansal tavsiyeler verebilir. Özellikle Borsa İstanbul gibi bir piyasada, anlık haber akışını veya şirket finansallarını hızlıca yorumlamak için bir ChatGPT tarzı yardımcı oldukça değerli olabilir.
+
+Bu alanda dikkat çeken bir girişim, FinGPT projesidir. FinGPT, finans sektörü için açık kaynaklı bir büyük dil modeli olarak geliştirilmiştir ve BloombergGPT gibi kapalı modellerin aksine veri-merkezli bir yaklaşım benimser ￼. Amaç, finans alanında Internet ölçeğinde veriyi demokratikleştirmek ve araştırmacılara/uygulayıcılara şeffaf bir LLM altyapısı sunmaktır ￼. FinGPT, finansal metinlerle ince ayar yapılarak (fine-tuning) robo-danışmanlık, algoritmik trading, düşük kodlu geliştirme gibi uygulama örnekleri göstermiştir. Bu modelin açık kaynak kodu ve bazı ön-eğitimli versiyonları da HuggingFace üzerinden yayınlanmaktadır.
+
+Benzer şekilde, FinBERT modeli finans metinlerinin duygu analizi (sentiment) için özelleştirilmiş bir BERT türevidir. FinBERT, finansal haber ve raporlarda genel NLP tekniklerini geride bırakan bir performans sergilemek üzere finans verisiyle eğitilmiştir ￼. Örneğin şirketlerle ilgili bir haber cümlesinin pozitif mi negatif mi olduğunu, FinBERT standart dil modellerinden daha isabetli şekilde belirleyebilir. Bu model de ücretsiz olarak GitHub/HuggingFace üzerinde bulunmakta ve Python ile entegre edilip örneğin hisse senedi haberlerini tarayıp skorlama amacıyla kullanılabilir.
+
+Bir finansal chatbot geliştirmek için, yukarıdaki modelleri doğrudan veya kendi verilerinizle birleştirerek kullanabilirsiniz. Örneğin, Python ekosistemindeki LangChain gibi çerçeveler, LLM’leri veri kaynaklarıyla entegre ederek soruları yanıtlama, belge içeriği arama gibi işlemleri otomatikleştirmeye imkan tanır. Bu sayede bir kullanıcı, BIST şirketlerinin finansallarını veya piyasa istatistiklerini sorduğunda modelin hafızasına ek olarak anlık verilere de başvurulabilir. Hatta GitHub üzerinde sunulan FinRobot projesi, FinGPT’nin ötesine geçerek çok-ajanslı (multi-agent) bir finans AI platformu oluşturmayı hedeflemektedir ￼. FinRobot, LLM tabanlı “ajanları” finansal doküman analizi, piyasa tahmini, trading stratejisi üretimi gibi farklı görevlerde çalıştırıp, araç kullanma becerileriyle donatıyor ￼ ￼. Bu tür ileri seviye projeler halen araştırma/açık kaynak geliştirme aşamasında olsa da, kendi sisteminize ilham verebilir.
+
+Daha basit yaklaşımla, OpenAI’nın ChatGPT veya GPT-4 API’larını kendi uygulamanıza entegre ederek de bir sohbet botu kurabilirsiniz (bu API’lar tam olarak ücretsiz olmasa da düşük maliyetli çözümler üretilebilir). Ya da GPT4All, Alpaca, Llama 2 gibi açık kaynak yerel LLM modellerini deneyip finans verisiyle ince ayar yaparak tamamen ücretsiz bir yerel chatbot da oluşturabilirsiniz. Sonuç olarak, finans asistanınızı kurmak için gereken yapıtaşları açıkça mevcut durumda: Bir dil modeli (FinGPT, ChatGPT vb.), finansal bilgi kaynağı (ör. şirket bilanço verileri, anlık piyasa verileri veya haberler) ve bunları birleştiren bir uygulama iskeleti (Python ile yazılmış).
+
+Görsel Dashboard ve Uyarı (Alarm) Sistemleri
+
+Analiz gücünüzü artırmanın bir diğer boyutu, verileri anlaşılır şekilde görselleştirmek ve önemli olaylar için otomatik uyarılar almak. Bunun için de birçok ücretsiz çözüm bulunmaktadır.
+
+Etkileşimli panolar (dashboard) oluşturmak için Python’daki popüler araçlardan ikisi Plotly Dash ve Streamlit’tir. Dash, Plotly kütüphanesi üzerine kurulu bir web uygulama çatısıdır; modern arayüz bileşenlerini (dropdown, slider, grafikler vs.) direkt Python kodunuza bağlamanızı sağlar ￼. Yani JavaScript gerekmeden tamamen Python ile web tabanlı grafiksel arayüzler geliştirebilirsiniz. Örneğin Dash ile hazırlanmış bir finans uygulamasında, kullanıcı bir hisse adını listeden seçtiğinde arka planda Yahoo Finance’den veri çekip grafiği yenileyen bir kod sadece birkaç satırla oluşturulabilir ￼ ￼. Benzer şekilde Streamlit de Python kodundan hızlı bir şekilde web arayüzü üretmeye yarar; finansal tabloları, grafikleri ve metin analizlerini anında interaktif bir panelde gösterebilirsiniz. Bu araçlar sayesinde kendi küçük “Bloomberg terminalinizi” veya TradingView benzeri grafik ekranlarınızı oluşturmanız mümkündür.
+
+Gerçek zamanlı uyarı sistemleri için ise kural bazlı taramalar ve bildirim mekanizmaları kurabilirsiniz. Örneğin, belirli bir hissenin fiyatı veya bir indikatör belirlenen eşiğin altına/üstüne çıktığında anlık haber almak istiyorsanız, bunu Python ile otomatikleştirebilirsiniz. Açık kaynak dünyasında bu amaca yönelik bir örnek stock-alerts projesidir. Bu proje, Yahoo Finance API’sini kullanarak kullanıcı tanımlı finansal formülleri periyodik olarak değerlendirip koşul gerçekleştiğinde e-posta ile bildirim gönderiyor; adeta kendi tanımladığınız kurallarla çalışan kişisel teknik analistiniz gibi çalışıyor ￼. Formül söz dizimi olarak “PRICE(GARAN.IS)>10 && RSI(14,GARAN.IS)<30” gibi ifadeler destekleniyor ve belirlediğiniz zaman aralıklarında taranıyor ￼ ￼.
+
+Kendi uyarı sisteminizi Python ile yazarken, zamanlamalı görevler için schedule veya APScheduler kütüphanelerini kullanabilir, veri kaynağı olarak yfinance, Finnhub gibi API’lardan fiyatları çekebilir ve bildirim için de aşağıda bahsedilen Apprise kütüphanesinden faydalanabilirsiniz. Apprise, hemen her popüler platforma kolayca bildirim yollamayı sağlayan hafif bir Python kütüphanesidir – Telegram, Discord, Slack, e-posta, SMS gibi birçok servise tek bir arayüz üzerinden mesaj atabilirsiniz ￼. Örneğin, belirlediğiniz alarm tetiklendiğinde Apprise ile anında cep telefonunuza bir Telegram mesajı göndertebilirsiniz. Bu sayede ekran başında olmasanız bile önemli fiyat hareketlerinden veya teknik sinyallerden haberdar olabilirsiniz.
+
+Görselleştirme tarafında, Grafana gibi açık kaynak çözümler de değerlendirilebilir. Grafana, zaman serisi verileri gerçek zamanlı olarak çizip alarm tanımlamaya imkân tanıyan bir pano aracıdır. Genellikle finansal verileri InfluxDB, Timescale gibi veri tabanlarında depolayıp Grafana ile görselleştirmek kurumsal ortamlarda yaygın bir yaklaşımdır. Ancak kendi yazılımınıza entegre etme açısından baktığımızda, Python + Dash/Streamlit yaklaşımı daha doğrudan olabilir. Alternatif olarak OpenBB Terminal (önceki adıyla Gamestonk Terminal) gibi bütünleşik çözümlere de göz atabilirsiniz. OpenBB Terminal, tamamen ücretsiz ve açık kaynak kodlu bir yatırım araştırma platformudur; hisse senetleri, kripto, fonlar ve diğer varlıklara dair yaklaşık 100 kadar veri kaynağına entegre olarak teknik analiz, temel analiz, tahminleme, portföy izleme gibi işlevleri tek bir komuta satırı arayüzünde sunar ￼. Kurulumu Python ile yapılıp hem programlama ortamında bir kütüphane gibi kullanılabilir, hem de bir terminal arayüzü olarak çalıştırılabilir. Bu platform, kurumsal Bloomberg Terminal özelliklerini bireysel kullanıcılara ücretsiz sunmayı hedeflemektedir ￼. OpenBB Terminal’in kodlarını inceleyerek kendi projenize uyarlamalar yapabilir veya ihtiyaç duyduğunuz modülleri (örneğin bir veri kaynağı entegrasyonu ya da teknik analiz modülü) ödünç alabilirsiniz.
+
+Borsa İstanbul Veri Erişimi ve Entegrasyonu
+
+Yukarıda bahsedilen araçların tümünü verinizle beslemeniz gerekir. Borsa İstanbul özelinde ücretsiz veri sağlamak için birkaç yöntem mevcut:
+	•	Yahoo Finance / YFinance: Yahoo Finance, BIST hisselerini genelde .IS uzantısıyla sunar. Python’da yfinance kütüphanesini kullanarak örneğin GARAN.IS (Garanti Bankası), THYAO.IS (THY) gibi sembollerin tarihsel fiyat verilerini çekebilirsiniz. Bu yöntemle günlük bazda yıllar öncesine dönük fiyat-sermaye verilerini ücretsiz alabilirsiniz. (Veriler bir miktar gecikmeli ve gün sonunda güncellenmiş olur; anlık derinlik değil ama genel analiz için yeterlidir).
+	•	Finnhub API: Finnhub, dünya çapındaki borsalar için gerçek zamanlı ve tarihsel verileri ücretsiz sunan bir REST API sağlar. Ücretsiz planla dakikada 60 çağrı yapabilirsiniz ve global piyasalarda hisse senedi fiyatları, şirket finansalları, ekonomik veriler gibi birçok veriye erişebilirsiniz ￼. BIST için de Finnhub üzerinden veri almak mümkün (örneğin BIST 100 endeksi veya hisseler Finnhub’ın kapsamındadır). Finnhub ayrıca temel analiz verileri, haberler ve alternatif veri setleri de sunar ￼ ￼.
+	•	Alpha Vantage: Alphavantage da ücretsiz bir API anahtarıyla belirli sayıda sorguya izin veren popüler bir finans veri servisidir. ABD piyasaları yanında birçok global piyasa verisini sağlar; API üzerinden hisse senedi zaman serileri, döviz kurları, kripto fiyatları, teknik gösterge hesaplamaları gibi uç noktalara sahiptir ￼. BIST kapsamı Alphavantage’ta sınırlı olabilir (dokümantasyonda bakmak lazım), ancak en azından bazı büyük Türk şirketlerinin ADR’leri veya endeks verileri erişilebilir.
+	•	Diğer Kaynaklar: Türkiye özelinde Kamuyu Aydınlatma Platformu (KAP) şirketlerin finansal raporlarını ve haberlerini sunar; bunları çekip metin analizi yapmak için kullanabilirsiniz. Borsa İstanbul’un kendi sitesinde de günlük bültenler, endeks verileri veya seans bazlı özetler CSV/XLS formatında paylaşılabiliyor; BISTECH platformu kapsamında veri dosyaları indirme imkânı vardır (örn. gün sonu işlem verileri) ￼. Ancak bunlar otomatik API şeklinde değil, manuel indirme veya anlaşmalı veri dağıtım kanalları ile olabilir. Ücretsiz API olarak olmasa da Investing.com veya İş Yatırım gibi kurumların sağladığı veri dizileri de web scraping yoluyla alınabilir.
+
+Veri entegrasyonunda Python için hazır paketleri kullanmak işinizi kolaylaştırır. Örneğin pandas-datareader kütüphanesi, Yahoo Finance veya diğer finans API’larından veri çekmeyi basit hale getirir. twelve-data, MarketStack, Quandl (Nasdaq Data Link) gibi servisler de ücretsiz katmanları olan alternatiflerdir. Hedefiniz sadece BIST ise, en pratik yaklaşım Yahoo Finance (yfinance) veya Finnhub gibi görünmektedir, çünkü bunlar Python ile birkaç satır kodla entegre olup güvenilir veri akışı sağlar.
+
+⸻
+
+Sonuç olarak, Python/GitHub tabanlı ücretsiz araçlar sayesinde Borsa İstanbul verilerini çok yönlü analiz edebilecek bir altyapıyı sıfırdan kurmanız mümkün. Teknik analiz indikatörleri ve formasyon algılama için TA-Lib ve PatternPy gibi kütüphaneler, yapay zekâ destekli tahminler için FinRL ve FinBERT gibi modeller, portföy optimizasyonu için PyPortfolioOpt, sohbet botu için FinGPT ve LangChain entegrasyonları, görselleştirme için Dash/Streamlit ve uyarılar için Apprise gibi araçlar bir arada kullanılarak adeta küçük bir “quant” sistemi oluşturulabilir. Tüm bu araçlar açık kaynak veya ücretsiz lisanslıdır. Bu sayede, yüksek maliyetli ticari yazılımlara alternatif olarak kendi özelleştirilmiş çözümünüzü geliştirebilir ve sürekli iyileştirerek rekabet avantajı elde edebilirsiniz. Unutmayın ki entegrasyon öncesi her bir aracın dokümantasyonuna göz atmak ve küçük prototiplerle test etmek faydalı olacaktır – ancak ekosistemde ihtiyaç duyduğunuz her parça için bir ücretsiz kaynak büyük ihtimalle bulunmaktadır. Başarılar ve iyi çalışmalar!
+
+Kaynaklar:
+	•	TA-Lib resmi sitesi – Teknik indikatörler ve formasyon tanıma kütüphanesi ￼ ￼
+	•	Wilson Freitas, awesome-quant GitHub listesi – Açık kaynak kuantitatif finans araçları derlemesi ￼ ￼
+	•	Keithorange, PatternPy – Formasyon tanıma Python paketi (GitHub) ￼ ￼
+	•	Omar Karimov, ChartScanAI – Derin öğrenme ile otomatik grafik desen tanıma (GitHub) ￼
+	•	FinRL, FinBERT, Qlib, vb. derlemeler (Awesome-Quant üzerinden) ￼ ￼
+	•	PyPortfolioOpt kütüphanesi (Awesome-Quant listesi) – Portföy optimizasyon araçları ￼
+	•	FinGPT makalesi – Finans sektörü için açık kaynak büyük dil modeli tanıtımı ￼
+	•	Praveen Purohit, Financial Sentiment Analysis using FinBERT – FinBERT tanıtım yazısı ￼
+	•	AI4Finance FinRobot projesi – Finansal LLM ajan platformu (GitHub) ￼
+	•	Plotly Dash (GitHub) – Python ile veri uygulamaları ve dashboard geliştirme çatısı ￼
+	•	nicomz, stock-alerts – Finansal kurallara dayalı e-posta uyarı sistemi (GitHub) ￼ ￼
+	•	Caronc, Apprise – Birçok platforma bildirim gönderen Python kütüphanesi (GitHub) ￼
+	•	OpenBB Terminal – Açık kaynak yatırım araştırma platformu tanıtımı ￼
+	•	Finnhub API – Küresel piyasa verileri için ücretsiz gerçek zamanlı API tanıtımı ￼
+	•	Alpha Vantage – Ücretsiz piyasa verisi API hizmeti genel tanıtımı ￼
+    Aşağıdaki liste, ABD borsaları (NYSE + NASDAQ) için tamamen ücretsiz veya cömert free-tier sunan, Python/GitHub ekosistemiyle uyumlu en güçlü araçları derliyor. Her başlık, PRD v2.0’daki modülleri doğrudan besleyecek şekilde seçildi.
+
+⸻amerikan borsası
+
+1. Veri Kaynakları (gerçek-zaman / 15 dk gecikmeli)
+
+Amaç	Ücretsiz API / Kitaplık	Özeti	Notlar
+Spot & OHLC	IEX Cloud free tier	50 k çağrı/ay, 15 dk gecikmeli US hisse fiyatı  ￼	WebSocket + REST, JSON
+	Yahoo Finance (yfinance)	Gecikmeli fiyat + hisse / endeks OHLC	Ana fallback; limitsiz sorgu
+	Polygon.io free	5 t dakika gecikmeli, opsiyon & kripto da var  ￼	Gün-içi aggregate & tick
+Fundamental & SEC	SEC EDGAR API	10 bk/s key-siz; 10-K, 10-Q XBRL parse  ￼	json, cik tespiti
+	Alpha Vantage	25 çağrı/dk; bilanço, FX & kripto  ￼	Çoğu oran doğrudan JSON
+Makro	FRED (pandas-datareader)	ABD enflasyon, CPI, VIX, CDS vb.	CSV & JSON, limitsiz
+
+
+⸻
+
+2. Teknik Analiz / Formasyon Radar
+
+Araç	Ne Sunar	Güçlü Yanı
+TA-Lib	200+ indikatör (EMA, RSI, MACD)  ￼	C core → çok hızlı
+patternizer	Mum formasyonu (pin-bar, engulfing), harmonik  ￼	JSON sinyal çıktısı
+finta	Ichimoku, VWAP, SuperTrend	Saf-Python, pip install kolay
+
+
+⸻
+
+3. Makine Öğrenimi / AI Modülleri
+
+Amaç	Kitaplık	Avantaj
+Kısa vadeli yön tahmini	LightGBM	Gradient Boost CPU-hızlı
+4 saatlik LSTM	Keras / TensorFlow	GPU-Colab free eğitim
+10 gün Time Series LLM	TimeGPT API (free 1 k/ay)	Sıfır model eğitimi
+FinRL	DDPG, PPO, SAC portföy ajanı  ￼	Jupyter örnekleri hazır
+PyPortfolioOpt	Mean-Var, Black-Litterman, CVaR optimizer  ￼	“ef.efficient_frontier()”
+
+
+⸻
+
+4. Sentiment & Haber Akışı
+
+Kaynak	Araç	Not
+FinBERT-English	HF model – finans haber duygu  ￼	3 sınıf (+, -, 0)
+Twitter	snscrape + Tweepy	$AAPL vs $MSFT akış
+NewsAPI.org	500 istek/gün free	“Apple stock AND CFO”
+
+
+⸻
+
+5. XAI & İzlenebilirlik
+
+Araç	Ne Yapar
+SHAP	Model katkı grafiği (bar, waterfall)
+LIME-tabular	Tek örnek açıklama
+
+
+⸻
+
+6. Görsel Dashboard & Alert
+
+İhtiyaç	Açık Kaynak	Özellik
+Web UI	Streamlit	st.line_chart, st_autorefresh
+Grafik	Plotly Dash	Opsiyonlu “candlestick”
+Bildirim	Apprise – 460+ servis push  ￼	Slack / Telegram tek satır
+
+
+⸻
+
+7. LLM / Chatbot Katmanı
+
+Çözüm	Özeti
+OpenBB Terminal	RAG + LangChain finans Q&A CLI  ￼
+Llama-3 / Mistral	HF GGUF, RAG-DB (Chroma) ile 100 % offline
+Microsoft Phi-3-mini	Edge TPU friendly, düşük VRAM
+
+
+⸻
+
+8. Broker & Paper-Trading API
+
+Broker	Free Tier	Python SDK
+Alpaca	$0 komisyon, paper account	alpaca-trade-api
+Interactive Brokers	Test GW, IB-Insync	Gerçek emir yeteneği
+
+
+⸻
+
+Nasıl Entegre Edilir? (Özet Akış)
+	1.	Data Layer
+	•	yfinance & IEX → fiyat
+	•	Alpha Vantage & EDGAR → fundamental
+	•	FRED → makro
+	2.	Feature Store (Firestore)
+	•	Günlük cron: fiyat + oran push
+	•	WebSocket: IEX canlı feed cache
+	3.	Signal Engine
+	1.	TA-Lib / patternizer sinyalleri
+	2.	Grey TOPSIS + PyPortfolioOpt skorları
+	3.	LightGBM + LSTM ensemble
+	4.	FinRL ajanından weight
+	4.	Explain & Serve
+	•	SHAP → feature_importance
+	•	FastAPI /signals + /chat
+	•	Apprise push → Slack / Telegram
+
+Bu set, BIST mimarisiyle bire bir aynı iskeleti koruyarak ABD hisselerine genişler; hem veri bolluğu hem de yüksek likidite sayesinde AI modellerinin tahmin gücünü artırır. Sıfır TL hedefi bozulmaz, çünkü tüm servisler ya açık kaynak ya da generous free-tier ile sınırlı.

@@ -1,88 +1,99 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
-import json
 import os
-from market_data_service import MarketDataService
+from market_data_service import fetch_prices, detect_bullish_signals
+from news_sentiment_service import NewsSentimentService
+from early_warning_engine import scan_and_write_early_warnings
 
 app = FastAPI(title="BIST AI Kazanç Asistanı API", version="1.0.0")
 
 # CORS ayarları - Flutter app için
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Production'da domain'leri belirt
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Market data service instance
-market_service = MarketDataService()
-
-# WebSocket bağlantıları için connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except:
-                # Bağlantı kopmuşsa listeden çıkar
-                self.active_connections.remove(connection)
-
-manager = ConnectionManager()
+news_service = NewsSentimentService()
 
 @app.on_event("startup")
 async def startup_event():
-    """Uygulama başlatıldığında market data servisi başlat"""
-    asyncio.create_task(market_service.start_realtime_data())
     print("🚀 BIST AI Backend başlatıldı!")
 
 @app.get("/")
 async def root():
     return {
-        "message": "BIST AI Kazanç Asistanı API", 
+        "message": "BIST AI Kazanç Asistanı API",
         "version": "1.0.0",
         "status": "🟢 Aktif"
     }
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "ws_connections": len(manager.active_connections)}
+    return {"status": "healthy"}
 
-@app.get("/symbols")
-async def get_tracked_symbols():
-    """Takip edilen semboller listesi"""
-    return {"symbols": market_service.tracked_symbols}
+@app.get("/price/{symbol}")
+def get_price(symbol: str):
+    prices = fetch_prices([symbol])
+    return { "symbol": symbol, "price": prices.get(symbol) }
 
-@app.websocket("/ws/prices")
-async def websocket_prices(websocket: WebSocket):
-    """Flutter app için canlı fiyat WebSocket"""
-    await manager.connect(websocket)
+@app.get("/api/news-sentiment")
+async def get_news_sentiment(symbol: str, lang: str = "tr"):
     try:
-        while True:
-            # Keep connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-
-@app.get("/api/latest-signals")
-async def get_latest_signals():
-    """En son AI sinyalleri (Firestore'dan çek)"""
-    try:
-        signals = await market_service.get_latest_signals()
-        return {"signals": signals, "count": len(signals)}
+        news_list = news_service.fetch_newsapi_headlines(symbol, lang=lang, max_results=10)
+        sentiments = [news_service.analyze_sentiment(news, lang=lang) for news in news_list]
+        if sentiments:
+            avg_score = sum([s[1] for s in sentiments]) / len(sentiments)
+            pos_count = sum([1 for s in sentiments if s[0] == "POSITIVE"])
+            neg_count = sum([1 for s in sentiments if s[0] == "NEGATIVE"])
+            neu_count = sum([1 for s in sentiments if s[0] == "NEUTRAL"])
+        else:
+            avg_score = 0.0
+            pos_count = neg_count = neu_count = 0
+        return {
+            "symbol": symbol,
+            "lang": lang,
+            "news_count": len(news_list),
+            "avg_sentiment_score": avg_score,
+            "positive": pos_count,
+            "negative": neg_count,
+            "neutral": neu_count,
+            "news_samples": news_list[:3]
+        }
     except Exception as e:
-        return {"error": str(e), "signals": []}
+        return {"error": str(e)}
+
+@app.post("/api/detect-signals")
+def detect_signals(mode: str = "technical"):
+    symbols = [
+        "THYAO.IS", "ASELS.IS", "KRDMD.IS", "TUPRS.IS", "EKGYO.IS",
+        "SAHOL.IS", "VAKBN.IS", "BIMAS.IS", "EREGL.IS", "TKFEN.IS",
+        "PGSUS.IS", "SISE.IS", "AKBNK.IS", "GARAN.IS", "HALKB.IS",
+        "ISCTR.IS", "TCELL.IS", "ENKAI.IS", "KOZAL.IS", "FROTO.IS",
+        "TAVHL.IS", "SOKM.IS", "TOASO.IS", "GUBRF.IS", "OYAKC.IS",
+        "MGROS.IS", "ULKER.IS", "ARCLK.IS", "KOZAA.IS", "VESTL.IS"
+    ]
+    if mode == "early_warning":
+        scan_and_write_early_warnings(symbols)
+        return {"status": "ok", "message": "Erken uyarı skorları Firestore'a yazıldı."}
+    else:
+        detect_bullish_signals(symbols)
+        return {"status": "ok", "message": "Yükseliş formasyonları tarandı ve sinyaller Firestore'a yazıldı."}
+
+@app.post("/api/early-warning-scan")
+def early_warning_scan():
+    symbols = [
+        "THYAO.IS", "ASELS.IS", "KRDMD.IS", "TUPRS.IS", "EKGYO.IS",
+        "SAHOL.IS", "VAKBN.IS", "BIMAS.IS", "EREGL.IS", "TKFEN.IS",
+        "PGSUS.IS", "SISE.IS", "AKBNK.IS", "GARAN.IS", "HALKB.IS",
+        "ISCTR.IS", "TCELL.IS", "ENKAI.IS", "KOZAL.IS", "FROTO.IS",
+        "TAVHL.IS", "SOKM.IS", "TOASO.IS", "GUBRF.IS", "OYAKC.IS",
+        "MGROS.IS", "ULKER.IS", "ARCLK.IS", "KOZAA.IS", "VESTL.IS"
+    ]
+    scan_and_write_early_warnings(symbols)
+    return {"status": "ok", "message": "Erken uyarı skorları Firestore'a yazıldı."}
 
 # Render için port ayarı
 if __name__ == "__main__":

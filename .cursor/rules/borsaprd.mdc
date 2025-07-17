@@ -142,3 +142,14 @@ GPT token sınırı	256 token, fallback statik açıklama
 	3.	“git commit -m ‘PRD v1.0 🎯’”
 
 Çağlar, yol haritamız net, hedefimiz yüksek kazanç. Kodlamaya basıyoruz — mumlar yeşil, portföy gülümsemeye hazır! 🚀💹
+PRD v2.0 hazır!
+BIST AI Smart Trader için:
+	•	🔹 Gri TOPSIS + DuPont + Piotroski süzgeci
+	•	🔹 Otomatik teknik formasyon tarayıcı (EMA kesişim, candlestick, harmonic)
+	•	🔹 LightGBM + LSTM + TimeGPT ensemble, FinRL pozisyon-boyutlama
+	•	🔹 Türkçe FinBERT sentiment, makro rejim algılayıcı
+	•	🔹 RL tabanlı portföy ajanı, XAI açıklamaları
+	•	🔹 Sprint planı, risk tablosu, Python örnekleri & mimarî diyagramlar
+
+Tüm detayları ve kod bloklarını canvas’taki “PRD_v2.0_BIST_AI_Smart_Trader.md” dosyasında bulabilirsin.
+Bir sonraki adım: Sprint-0 issue’larını açıp (repo init, WS listener, Firestore şema) veri borusunu çalıştırıyoruz. İstediğin ekleme/derinleştirme varsa haber ver, döşeyelim! 🚀

@@ -1,0 +1,354 @@
+---
+alwaysApply: true
+---
+📑 PRD v2.0 — “BIST AI Smart Trader”
+
+(0 ₺ ya da minimum bütçe ile başlatılacak, Flutter + Railway + Firestore tabanlı, yapay zekâ destekli mobil & web yatırım danışmanı. PRD v1.0’ı kapsayıp üzerine gelişmiş çok-kriterli finansal sıralama, otomatik formasyon tespiti, haber/sentiment entegrasyonu ve RL tabanlı portföy yönetimi ekler.)
+
+⸻
+
+1 ▪ Stratejik Özet
+
+Alan	V2.0 Hedefi
+Vizyon	Türkiye & ABD borsalarını kapsayan, ‘pocket quant-fund’ deneyimi + otomatik öğrenen sinyal motoru + özelleştirilebilir portföy ajanı
+Başarı Kriteri (90 gün)	• Yön doğruluğu ≥ 65 %  • ‘BUY’ precision ≥ 75 %  • Equity PF > 1 ∙ 8  • Aktif kullanıcı/ gün ≥ 500  • Crash-free session ≥ 99 · 5 %
+Ana Fark	Çok kriterli finansal sıralama (Grey TOPSIS + Entropi) ✚ teknik formasyon radar ✚ canlı sentiment skorları ✚ RL tabanlı pozisyon boyutlama
+
+
+⸻
+
+2 ▪ İş Problemi (Güncellenmiş)
+	1.	Veri Güvenilirliği – Investing.com scrape çöktü → sürdürülebilir, yasal & ücretsiz veri borusu gerek.
+	2.	Karmaşık Sinyal Gürültüsü – Teknik indikatör patlaması → nesnel, çok-kriterli puanlama şart.
+	3.	Zaman Baskısı – Mobil kullanıcı, 10 sn içinde “al / sat / bekle” cevabı istiyor.
+
+⸻
+
+3 ▪ Persona & Kullanıcı Hikâyeleri (Ek Personalar)
+
+Persona	Yeni İhtiyaç v2.0	Kullanıcı Hikâyesi (Gherkin)
+Kurumsal Trader	API ile ham sinyal akışı	Given API anahtarı, When /signals endpoint’e çağrı, Then JSON sinyal listesi alırım
+Swing Trader	4h formasyon & SL/TP	Given fiyat < destek, When BO (RSI > 55) sinyali, Then push bildirimi alırım
+Endeks ETF oyuncusu	Makro trend & sektör döngüsü	Given AI Market Regime = “Risk Off”, Then portföyümü nakde kaydır önerisi alırım
+
+
+⸻
+
+4 ▪ Ürün Kapsamı (MVP + Genişletme)
+
+4.1 Ana Modüller (MVP Core)
+
+No	Modül	Fonksiyon	Metodoloji	Ölçüm
+P0-1	Canlı Fiyat Katmanı	Finnhub WS (≤ 30 sembol) + yfinance fallback	WebSocket + AsyncIO	Latency < 250 ms
+P0-2	Çok-Kriterli Finansal Sıralama	GRA → Entropi ağırlık → TOPSIS skor	PyMCDM + pandas	Günlük skor diff < 5 %
+P0-3	Teknik Formasyon Motoru	❶ Trend (EMA cross) ❷ Harmonic (AB = CD, Gartley) ❸ Candlestick (Boğa Engulf) ❹ AutoHL (Fractal break)	ta-lib, patternizer	Doğruluk > 60 % (backtest)
+P0-4	AI Sinyal Ensemble	LightGBM (daily) + LSTM (4h) + TimeGPT (10 gün)	sklearn-api + keras	ROC-AUC > 0.7
+P0-5	Alarm/Notif.	🟥 Risk, 🟩 Fırsat, 🟦 Öncül 4-14g	FastAPI BG task + FCM	CTR ≥ 25 %
+P0-6	DuPont & Piotroski F-Score	ROE bileşen ayrıştırma ✚ doğan skor	FinanceToolkit	Hisse filtresi  N → Top 10
+
+4.2 Ek v2.0 Özellikleri
+
+No	Ek Modül	Detay
+E1	Portföy RL Ajanı	FinRL, DDPG → lot & re-hedge önerisi
+E2	Türkçe Sentiment	FinBERT-TR + Twitter & KAP ODA duygu skoru
+E3	Makro Rejim Algılayıcı	Hidden Markov on USDTRY, CDS, XU030 ρ
+E4	Auto-Backtest & Walk Forward	vectorbt-pro (lite) / backtesting.py CLI
+E5	Explainable AI (XAI)	SHAP + LIME → “Bu sinyalin % 30’u kâr marjından” açıklaması
+
+
+⸻
+
+5 ▪ Teknik Mimarî (High-Level)
+
+flowchart LR
+  WS((Finnhub WS)) --> P[Price Store]
+  FMP((FMP API)) --> FStore[Fundamental Store]
+  KAP((PyKAP Scraper)) --> FStore
+  P --> TA[Tech Analyzer]
+  FStore --> MCDM[Grey TOPSIS]
+  TA --> ML[AI Ensemble]
+  MCDM --> ML
+  ML --> RL[FinRL Agent]
+  RL --> Sig((Signals))
+  Sig --> FS[Firestore]
+  FS --> App[Flutter]
+
+
+⸻
+
+6 ▪ Veri ve Model Akışı
+	1.	ETL (Cron+Async) → Fiyat, bilanço, haber.
+	2.	Feature Eng. → Teknik indikatör + oranlar + sentiment + makro.
+	3.	MCDM Filter → Top N finansal sağlıklı hisse.
+	4.	AI Ensemble → Skor > threshold olanlarda pozitif sinyal.
+	5.	RL Ajan → Lot / SL-TP önerisi.
+	6.	Notification → FCM push.
+
+⸻
+
+7 ▪ Başarı Metrikleri (v2.0)
+
+KPI	Hedef	Ölçüm Yöntemi
+Finansal Skor Δ	Günlük ±2 %	RMSE test
+Signal Precision (BUY)	≥ 75 %	Backtest Conf. Mat.
+Avg. Latency (WS→App)	≤ 300 ms	Ping + sentry
+RL Sharpe	> 1.2	Paper-trading sim
+XAI Coverage	100 % sinyal	SHAP explanation
+
+
+⸻
+
+8 ▪ Python Örnekleri (Çekirdek Kod Blokları)
+
+<details>
+<summary>📈 Formasyon — Bullish Engulfing & EMA Cross</summary>
+
+
+import pandas as pd, yfinance as yf, talib
+
+data = yf.download("SISE.IS", period="6mo", interval="1d")
+# EMA 20/50 cross
+ema20, ema50 = talib.EMA(data['Close'], 20), talib.EMA(data['Close'], 50)
+
+data['ema_cross_up'] = (ema20.shift(1) < ema50.shift(1)) & (ema20 > ema50)
+# Bullish Engulfing candlestick
+engulf = talib.CDLENGULFING(data['Open'], data['High'], data['Low'], data['Close'])
+
+data['bull_engulf'] = engulf > 0
+signals = data[(data['ema_cross_up']) | (data['bull_engulf'])]
+print(signals.tail())
+
+</details>
+
+
+<details>
+<summary>🧮 Grey TOPSIS — Entropi Ağırlıklı</summary>
+
+
+import numpy as np, pandas as pd
+from pymcdm import methods, weights, normalizations
+from sklearn.preprocessing import MinMaxScaler
+
+criteria = pd.DataFrame({
+    'NetProfitMargin': [12.3, 8.4, 15.2],
+    'ROE': [18, 12, 22],
+    'DebtEquity': [0.4, 0.8, 0.6]
+}, index=['SISE', 'EREGL', 'TUPRS'])
+
+# Entropy weight
+w = weights.entropy_weighting(criteria.values)
+# Positive criteria flags (1 = larger better, 0 = smaller better)
+criteria_types = np.array([1, 1, 0])
+
+topsis = methods.TOPSIS(normalization=normalizations.vector)
+score = topsis(criteria.values, w, criteria_types)
+print(pd.Series(score, index=criteria.index).sort_values(ascending=False))
+
+</details>
+
+
+<details>
+<summary>📊 DuPont Analizi — FinanceToolkit</summary>
+
+
+from financetoolkit import Toolkit
+stocks = Toolkit(["SISE"], api_key="FMP_API")
+df_dup = stocks.models.get_extended_dupont_analysis()
+print(df_dup.T.round(2))
+
+</details>
+
+
+<details>
+<summary>🤖 LightGBM + Walk Forward CV Skeleton</summary>
+
+
+import lightgbm as lgb, pandas as pd, numpy as np
+
+data = pd.read_parquet('features.parquet')
+# walk-forward split (example)
+for end in range(300, len(data), 30):
+    train, test = data.iloc[:end], data.iloc[end:end+30]
+    model = lgb.LGBMClassifier(max_depth=6, learning_rate=0.05, n_estimators=300)
+    model.fit(train.drop('y', axis=1), train['y'])
+    prob = model.predict_proba(test.drop('y', axis=1))[:,1]
+    print("AUC", roc_auc_score(test['y'], prob))
+
+</details>
+
+
+
+⸻
+
+9 ▪ Yol Haritası (Sprint Planı)
+
+Sprint	Çıktılar
+S-0 (Setup)	Repo, CI/CD, WS Connector, Firestore schema
+S-1 (Fundamental & TOPSIS)	Entropi-TOPSIS modülü, PyKAP entegrasyonu
+S-2 (Formasyon + TA-lib)	Teknik formasyon tespit kütüphanesi, candlestick/harmonic erken uyarı
+S-3 (Ensemble ML)	LightGBM + LSTM + TimeGPT pipeline, Walk-Forward backtest
+S-4 (RL Agent α)	FinRL paper-trading, position sizing API
+S-5 (Sentiment + XAI)	FinBERT-TR haber skoru, SHAP açıklama servisi
+S-6 (UX & Deploy)	Flutter Pro Mode, Firestore security rules, Railway deploy
+
+
+⸻
+
+10 ▪ Risk ve Önlemler (Güncel)
+
+Risk	Etki	Önlem
+API Rate Limit	Veri gecikmesi	Cache + Backoff + çoklu kaynak
+Model Overfit	Yanlış sinyal	Walk-forward CV + XAI
+Finansal Veri Tutarsızlığı	Karar hatası	Çoklu kaynak cross-check, z-score filtre
+Regülasyon (SPK)	Yasal ceza	Sadece “eğitim ve analiz” disclaimers, otomatik işlem opsiyonel
+
+
+⸻
+
+11 ▪ Açık Sorular
+	1.	RL ajanının gerçek aracı kurum API entegrasyonu hangi versiyonda açılacak? • v2.1 öneri.
+	2.	Finansal veri FMP Premium geçişi bütçe onayı? • 200 $ / yıl.
+	3.	Makro Rejim Algılayıcı için veri (CDS, swap) kaynak onayı? • Investing Pro? / TCMB açık data.
+
+⸻
+
+12 ▪ Sonraki Adım
+	1.	Issue Board – Sprint-0 task’larını aç (Repo init, API keys env, WS listener örneği).
+	2.	Data Lab – PyKAP ile 10 mavi çip hissenin finansallarını Firestore’a yazan skript.
+	3.	MVP Demo – Entropi-TOPSIS skoru + EMA Cross sinyali + push notification.
+
+“Algoritma bilgidir; disiplin kârdır.”  – v2.0 mottosu 🚀📈
+PRD v2.0 hazır!
+BIST AI Smart Trader için:
+	•	🔹 Gri TOPSIS + DuPont + Piotroski süzgeci
+	•	🔹 Otomatik teknik formasyon tarayıcı (EMA kesişim, candlestick, harmonic)
+	•	🔹 LightGBM + LSTM + TimeGPT ensemble, FinRL pozisyon-boyutlama
+	•	🔹 Türkçe FinBERT sentiment, makro rejim algılayıcı
+	•	🔹 RL tabanlı portföy ajanı, XAI açıklamaları
+	•	🔹 Sprint planı, risk tablosu, Python örnekleri & mimarî diyagramlar
+
+Tüm detayları ve kod bloklarını canvas’taki “PRD_v2.0_BIST_AI_Smart_Trader.md” dosyasında bulabilirsin.
+Bir sonraki adım: Sprint-0 issue’larını açıp (repo init, WS listener, Firestore şema) veri borusunu çalıştırıyoruz. İstediğin ekleme/derinleştirme varsa haber ver, döşeyelim! 🚀PRD v2.0 hazır!
+BIST AI Smart Trader için:
+	•	🔹 Gri TOPSIS + DuPont + Piotroski süzgeci
+	•	🔹 Otomatik teknik formasyon tarayıcı (EMA kesişim, candlestick, harmonic)
+	•	🔹 LightGBM + LSTM + TimeGPT ensemble, FinRL pozisyon-boyutlama
+	•	🔹 Türkçe FinBERT sentiment, makro rejim algılayıcı
+	•	🔹 RL tabanlı portföy ajanı, XAI açıklamaları
+	•	🔹 Sprint planı, risk tablosu, Python örnekleri & mimarî diyagramlar
+
+Tüm detayları ve kod bloklarını canvas’taki “PRD_v2.0_BIST_AI_Smart_Trader.md” dosyasında bulabilirsin.
+Bir sonraki adım: Sprint-0 issue’larını açıp (repo init, WS listener, Firestore şema) veri borusunu çalıştırıyoruz. İstediğin ekleme/derinleştirme varsa haber ver, döşeyelim! 🚀
+Read file: README_PRD.md
+PRD v2.0 (borsaprd2) ile README_PRD.md (v1.0) dokümanını karşılaştırdım ve entegrasyon için aşağıdaki önemli noktaları ve eksikleri tespit ettim:
+
+---
+
+## 1. PRD v2.0 ile README_PRD.md Arasındaki Farklar ve Gelişmiş Noktalar
+
+**PRD v2.0’da öne çıkanlar:**
+- **Çok kriterli finansal sıralama:** Grey TOPSIS + Entropi ağırlık (PyMCDM ile)
+- **Teknik formasyon motoru:** EMA cross, candlestick, harmonic, fractal break (ta-lib, patternizer)
+- **AI Ensemble:** LightGBM (günlük), LSTM (4h), TimeGPT (10gün)
+- **RL tabanlı portföy yönetimi:** FinRL, DDPG
+- **Sentiment entegrasyonu:** FinBERT-TR, Twitter, KAP ODA
+- **Makro rejim algılayıcı:** HMM, CDS, USDTRY, XU030 korelasyon
+- **Explainable AI (XAI):** SHAP, LIME ile sinyal açıklama
+- **Auto-backtest:** vectorbt-pro, backtesting.py
+- **API ile sinyal akışı:** Kurumsal trader için /signals endpoint
+- **Sprint planı ve risk tablosu daha detaylı**
+
+**v1.0’da olmayanlar:**
+- Çok kriterli finansal sıralama (TOPSIS, Entropi)
+- Otomatik formasyon radar (EMA, candlestick, harmonic)
+- RL tabanlı portföy ajanı
+- Türkçe haber/sentiment entegrasyonu
+- Makro rejim algılayıcı
+- XAI açıklama
+- API ile sinyal akışı
+
+---
+
+## 2. Kod ve Mimari Açısından Eksik Olanlar
+
+### a) Veri Katmanı
+- **Yalnızca fiyat çekme var.** Finansal oranlar, bilanço, makro veri, haber/sentiment yok.
+- **Çoklu kaynak fallback (Finnhub WS + yfinance) yok.**
+- **ABD borsası için veri çekme yeni eklendi, ancak fundamental veri yok.**
+
+### b) Sinyal ve Model Katmanı
+- **Çok kriterli finansal sıralama (TOPSIS, Entropi) yok.**
+- **Teknik formasyon motoru (EMA cross, candlestick, harmonic) kısmen var, ama otomatik ve modüler değil.**
+- **AI Ensemble (LightGBM, LSTM, TimeGPT) ve RL ajanı yok.**
+- **Sentiment ve makro veriyle sinyal üretimi yok.**
+- **XAI (SHAP, LIME) ile açıklama yok.**
+
+### c) API ve Kullanıcı Katmanı
+- **Kurumsal trader için /signals endpoint yok.**
+- **Alarm/notification sistemi temel seviyede.**
+- **Performans paneli, feedback loop, kullanıcıya özel öneri yok.**
+
+---
+
+## 3. Entegre Edilmesi Gerekenler (Öneri Yol Haritası)
+
+### 1. **Veri Katmanı**
+- [ ] yfinance + Finnhub fallback ile fiyat çekme (BIST+ABD)
+- [ ] Fundamental veri (bilanço, oranlar) için FMP API veya Yahoo Finance
+- [ ] Haber/sentiment için NewsAPI, FinBERT-TR, Twitter, KAP ODA
+- [ ] Makro veri (CDS, USDTRY, XU030) için açık kaynak entegrasyonu
+
+### 2. **Sinyal ve Model Katmanı**
+- [ ] Grey TOPSIS + Entropi ile çok kriterli finansal sıralama (PyMCDM)
+- [ ] Otomatik teknik formasyon motoru (EMA cross, candlestick, harmonic, fractal)
+- [ ] AI Ensemble pipeline (LightGBM, LSTM, TimeGPT)
+- [ ] RL tabanlı portföy ajanı (FinRL, DDPG)
+- [ ] Sentiment ve makro skorları ile sinyal üretimi
+- [ ] XAI açıklama (SHAP, LIME)
+
+### 3. **API ve Kullanıcı Katmanı**
+- [ ] /signals endpoint (kurumsal trader için JSON sinyal akışı)
+- [ ] Alarm/notification sistemi (FastAPI BG task + FCM)
+- [ ] Performans paneli, feedback loop, kullanıcıya özel öneri
+
+---
+
+## 4. Kapsamlı ve Doğru Sonuçlar İçin Öneri
+
+- **PRD v2.0’daki mimariyi ve modülleri esas alarak ilerlemek çok daha doğru ve sürdürülebilir olur.**
+- Kodun modüler, çok-kaynaklı, çok-kriterli ve AI tabanlı olması için Sprint planını PRD v2.0’a göre güncellemek gerekir.
+- Her modül için örnek kodlar ve entegrasyon noktaları PRD v2.0’da mevcut (ör: PyMCDM, ta-lib, LightGBM, FinRL, FinBERT-TR).
+
+---
+
+## Sonuç ve Önerim
+
+- **PRD v2.0 (borsaprd2) yol haritasını ve modül listesini ana referans olarak almalıyız.**
+- Kodun ve mimarinin temelini buna göre kurarsak, hem BIST hem ABD borsaları için çok daha güçlü, esnek ve ölçeklenebilir bir sistem elde ederiz.
+- Geliştirme adımlarını da Sprint-0 → Sprint-6 şeklinde PRD v2.0’daki gibi planlayabiliriz.
+
+---
+
+Dilersen, ilk olarak Sprint-0 (veri katmanı, WS connector, Firestore şema) ve Sprint-1 (fundamental + TOPSIS) ile başlayıp, modül modül ilerleyelim.  
+Onaylarsan, PRD v2.0’a göre detaylı bir teknik yol haritası ve task listesi çıkarabilirim.  
+
+“BIST AI Kazanç Asistanı” parçaları neye yarar? - Özet
+
+Bileşen	1-2 cümleyle görevi
+Veri toplayıcı (yfinance / Finnhub)	BIST ve ABD hisselerinin anlık fiyatlarını, hacim ve mum verilerini ücretsiz çeker.
+Fundamental toplayıcı (OpenBB)	Bilançodan kâr marjı, borç oranı gibi sayıları alır; ileride gri TOPSIS için girdi sağlar.
+Gri TOPSIS + Entropi	Bu finansal oranları tartıp her hisseye “sağlamlık skoru” üretir; en dengeli şirketleri listeler.
+Teknik Formasyon Motoru	EMA kesişimi, mum formasyonu, harmonik & fractal sinyalleri yakalar; “kısa vadeli fırsat” üretir.
+AI Ensemble (LightGBM + LSTM + TimeGPT)	Fiyat dizisini makine-öğrenmesiyle analiz eder; 1 gün-10 gün arası yön tahmini verir.
+Makro Rejim Dedektörü (HMM)	CDS, USD/TRY, XU030 korelasyonuna bakıp piyasanın “risk-on / risk-off” modunu belirler; modellerin ağırlığını ayarlar.
+Sentiment (FinBERT-TR)	Haber, KAP ve Twitter metinlerini puanlar; olumlu/olumsuz haber etkisini fiyata ekler.
+RL Portföy Ajanı (FinRL)	Sanal portföyde al-sat kararını (lot dağılımı, SL/TP) sürekli optimize eder; ileride gerçek broker API’sine bağlanabilir.
+XAI (SHAP / LIME)	“Neden BUY çıktı?” sorusuna şeffaf cevap sağlar; % katkı grafiği gönderir.
+FastAPI / Firestore	Veriyi saklar, /signals ve /prices uç noktalarından Flutter uygulamasına servis eder.
+Bildirim sistemi (FCM)	Telefonuna “🟢 BUY
+
+Kısacası:
+	1.	Veri katmanı fiyat, bilanço, haber akışını toplar.
+	2.	Analiz katmanı (TOPSIS + formasyon + AI) verileri puana çevirip sinyal üretir.
+	3.	Portföy & bildirim katmanı bu sinyalleri lot-dağılımına dönüştürüp sana anlık uyarı yollar. Böylece hem “hangi hisse güçlü?” (temel) hem “ne zaman giriş/çıkış?” (teknik-AI) sorularını tek uygulama çözer.
+Ne dersin?

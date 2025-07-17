@@ -1,179 +1,222 @@
-import asyncio
-import json
-import os
+import investpy
+import logging
+import pandas as pd
+import ta
 from datetime import datetime
 from google.cloud import firestore
+from indicators import (
+    detect_rsi_bullish_divergence,
+    detect_macd_bullish_momentum,
+    detect_obv_increase,
+    detect_vwap_breakout,
+    detect_bullish_engulfing,
+    detect_morning_star,
+    detect_three_white_soldiers,
+    detect_volume_spike
+)
 import yfinance as yf
-from typing import List, Dict
 
-class MarketDataService:
-    def __init__(self):
-        # BIST'te en popüler 30 sembol (volume bazlı)
-        self.tracked_symbols = [
-            "THYAO.IS", "ASELS.IS", "KRDMD.IS", "TUPRS.IS", "EKGYO.IS",
-            "SAHOL.IS", "VAKBN.IS", "BIMAS.IS", "EREGL.IS", "TKFEN.IS",
-            "PGSUS.IS", "SISE.IS", "AKBNK.IS", "GARAN.IS", "HALKB.IS",
-            "ISCTR.IS", "TCELL.IS", "ENKAI.IS", "KOZAL.IS", "FROTO.IS",
-            "TAVHL.IS", "SOKM.IS", "TOASO.IS", "GUBRF.IS", "OYAKC.IS",
-            "MGROS.IS", "ULKER.IS", "ARCLK.IS", "KOZAA.IS", "VESTL.IS"
-        ]
-        
-        # Firestore client
-        self.db = None
-        self.init_firestore()
-        
-        # Son fiyatlar cache
-        self.latest_prices = {}
-        
-    def init_firestore(self):
-        """Firestore client başlat"""
-        try:
-            self.db = firestore.Client()
-            print("✅ Firestore bağlantısı kuruldu")
-        except Exception as e:
-            print(f"❌ Firestore bağlantı hatası: {e}")
-            self.db = None
+from pymcdm import methods, weights, normalizations
+import numpy as np
 
-    async def start_realtime_data(self):
-        """Canlı veri akışını başlat"""
-        await asyncio.gather(
-            self.start_yfinance_polling(),  # yfinance ile REST polling
-            self.start_signal_generator()   # AI sinyal üretici (mock)
-        )
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-    async def start_yfinance_polling(self):
-        """yfinance ile 30 saniyede bir fiyat çek"""
-        while True:
+import json
+import os
+
+logger = logging.getLogger(__name__)
+
+def fetch_prices_modular(symbols, source="yfinance", country="turkey"):
+    """
+    Modüler fiyat çekme fonksiyonu. source: 'yfinance', 'investpy' veya ileride 'finnhub'.
+    country: 'turkey' (BIST) veya 'usa' (ABD borsaları) gibi.
+    """
+    prices = {}
+    if source == "investpy":
+        for sym in symbols:
+            ticker = sym.replace(".IS", "")
             try:
-                # 5'er sembol gruplar halinde çek (rate limit için)
-                for i in range(0, len(self.tracked_symbols), 5):
-                    batch = self.tracked_symbols[i:i+5]
-                    await self.fetch_batch_prices(batch)
-                    await asyncio.sleep(2)  # Batch'ler arası 2 saniye bekle
-                
-                print(f"📊 {len(self.tracked_symbols)} sembol fiyatı güncellendi")
-                await asyncio.sleep(30)  # 30 saniye bekle
-                
+                df = investpy.get_stock_recent_data(stock=ticker, country=country)
+                if not df.empty:
+                    last_price = float(df['Close'].iloc[-1])
+                    prices[sym] = last_price
+                    logger.info(f"{sym}: fiyat alındı - {last_price}")
+                else:
+                    logger.warning(f"{sym}: investpy boş DataFrame döndürdü")
             except Exception as e:
-                print(f"❌ Fiyat çekme hatası: {e}")
-                await asyncio.sleep(60)  # Hata durumunda 1 dakika bekle
-
-    async def fetch_batch_prices(self, symbols: List[str]):
-        """Belirli sembollerin fiyatlarını çek ve Firestore'a yaz"""
-        try:
-            for symbol in symbols:
-                ticker = yf.Ticker(symbol)
-                info = ticker.history(period="1d", interval="1m")
-                
-                if not info.empty:
-                    latest = info.iloc[-1]
-                    price_data = {
-                        "symbol": symbol,
-                        "price": float(latest['Close']),
-                        "volume": int(latest['Volume']),
-                        "timestamp": datetime.now(),
-                        "change": 0.0,  # TODO: Önceki kapanışa göre hesapla
-                        "change_percent": 0.0
-                    }
-                    
-                    # Cache'e kaydet
-                    self.latest_prices[symbol] = price_data
-                    
-                    # Firestore'a yaz
-                    if self.db:
-                        await self.save_price_to_firestore(price_data)
-                        
-        except Exception as e:
-            print(f"❌ Batch fiyat hatası: {e}")
-
-    async def save_price_to_firestore(self, price_data: Dict):
-        """Fiyat verisini Firestore'a kaydet"""
-        try:
-            # raw_prices koleksiyonuna yaz
-            doc_ref = self.db.collection('raw_prices').add(price_data)
-            
-            # latest_prices koleksiyonuna da güncel fiyatı yaz
-            latest_ref = self.db.collection('latest_prices').document(price_data['symbol'])
-            latest_ref.set(price_data)
-            
-        except Exception as e:
-            print(f"❌ Firestore yazma hatası: {e}")
-
-    async def start_signal_generator(self):
-        """AI sinyal üretici (şimdilik mock - SPRINT-1'de gerçek AI gelecek)"""
-        while True:
+                logger.warning(f"{sym}: Investing.com veri hatası: {e}")
+    elif source == "yfinance":
+        for sym in symbols:
+            yf_symbol = sym
+            # BIST için .IS, ABD için direkt sembol (ör: AAPL, MSFT)
+            if country == "turkey" and not sym.endswith(".IS"):
+                yf_symbol = sym + ".IS"
             try:
-                await asyncio.sleep(120)  # 2 dakikada bir sinyal üret
-                
-                # Rastgele 3-5 sembol seç ve mock sinyal üret
-                import random
-                selected_symbols = random.sample(self.tracked_symbols, random.randint(3, 5))
-                
-                for symbol in selected_symbols:
-                    signal = self.generate_mock_signal(symbol)
-                    await self.save_signal_to_firestore(signal)
-                    
-                print(f"🤖 {len(selected_symbols)} mock AI sinyali üretildi")
-                
+                ticker = yf.Ticker(yf_symbol)
+                df = ticker.history(period="1d", interval="5m")
+                if not df.empty:
+                    last_price = float(df['Close'].iloc[-1])
+                    prices[sym] = last_price
+                    logger.info(f"{sym}: yfinance fiyat alındı - {last_price}")
+                else:
+                    logger.warning(f"{sym}: yfinance boş DataFrame döndürdü")
             except Exception as e:
-                print(f"❌ Sinyal üretme hatası: {e}")
-                await asyncio.sleep(300)  # Hata durumunda 5 dakika bekle
+                logger.warning(f"{sym}: yfinance veri hatası: {e}")
+    # Finnhub ve diğer kaynaklar ileride eklenebilir
+    else:
+        logger.error(f"Bilinmeyen veri kaynağı: {source}")
+    return prices
 
-    def generate_mock_signal(self, symbol: str) -> Dict:
-        """Mock AI sinyali üret (SPRINT-1'de gerçek LightGBM gelecek)"""
-        import random
-        
-        signal_types = ["BUY", "SELL", "HOLD"]
-        signal_type = random.choice(signal_types)
-        
-        # BUY/SELL için mock confidence
-        confidence = random.uniform(0.6, 0.95) if signal_type != "HOLD" else random.uniform(0.4, 0.7)
-        
-        return {
-            "symbol": symbol,
-            "signal": signal_type,
-            "confidence": round(confidence, 3),
-            "timestamp": datetime.now(),
-            "model": "MockLGBM_v0.1",
-            "price": self.latest_prices.get(symbol, {}).get("price", 0.0),
-            "reason": f"Mock {signal_type} sinyali - RSI ve MACD bazlı",
-            "sl_percent": round(random.uniform(3, 8), 1) if signal_type == "BUY" else 0,
-            "tp_percent": round(random.uniform(8, 15), 1) if signal_type == "BUY" else 0
-        }
-
-    async def save_signal_to_firestore(self, signal: Dict):
-        """AI sinyalini Firestore'a kaydet"""
+# --- Teknik analiz ve sinyal üretimi ---
+def detect_bullish_signals(symbols):
+    db = firestore.Client()
+    for sym in symbols:
+        ticker = sym.replace(".IS", "")
         try:
-            if self.db:
-                # signals koleksiyonuna yaz
-                self.db.collection('signals').add(signal)
-                
-                # latest_signals koleksiyonuna da güncel sinyali yaz
-                latest_ref = self.db.collection('latest_signals').document(signal['symbol'])
-                latest_ref.set(signal)
-                
+            df = investpy.get_stock_recent_data(stock=ticker, country="turkey")
+            if df.empty or len(df) < 50:
+                continue
+            # Kolon isimlerini normalize et
+            df = df.rename(columns={
+                'Close': 'close', 'Open': 'open', 'High': 'high', 'Low': 'low', 'Volume': 'volume'
+            })
+            # Göstergeleri çalıştır
+            results = {
+                'rsi_divergence': detect_rsi_bullish_divergence(df),
+                'macd_momentum': detect_macd_bullish_momentum(df),
+                'obv_increase': detect_obv_increase(df),
+                'vwap_breakout': detect_vwap_breakout(df),
+                'bullish_engulfing': detect_bullish_engulfing(df),
+                'morning_star': detect_morning_star(df),
+                'three_white_soldiers': detect_three_white_soldiers(df),
+                'volume_spike': detect_volume_spike(df)
+            }
+            true_signals = [k for k, v in results.items() if v]
+            # En az 2 gösterge aynı anda sinyal veriyorsa
+            if len(true_signals) >= 2:
+                last = df.iloc[-1]
+                signal = {
+                    "symbol": sym,
+                    "price": float(last['close']),
+                    "signal": "BUY",
+                    "confidence": 0.90 + 0.01 * (len(true_signals)-2),
+                    "timestamp": datetime.now(),
+                    "model": "MultiTA-8",
+                    "reason": f"{', '.join(true_signals)} bullish sinyali",
+                    "formation": "bullish",
+                    "indicators": true_signals
+                }
+                logger.info(f"{sym}: Gelişmiş YÜKSELİŞ SİNYALİ! {signal}")
+                db.collection('latest_signals').document(sym).set(signal)
         except Exception as e:
-            print(f"❌ Sinyal kaydetme hatası: {e}")
+            logger.warning(f"{sym}: Teknik analiz/sinyal hatası: {e}")
 
-    async def get_latest_signals(self) -> List[Dict]:
-        """En son sinyalleri Firestore'dan çek"""
+def calculate_topsis_entropy_score(df, criteria_types):
+    """
+    df: Finansal oranlar DataFrame'i (satırlar: semboller, sütunlar: oranlar)
+    criteria_types: np.array, 1=benefit, 0=cost
+    """
+    # Entropi ağırlık
+    w = weights.entropy_weights(df.values)
+    # TOPSIS skor
+    topsis = methods.TOPSIS(normalization_function=normalizations.vector_normalization)
+    score = topsis(df.values, w, criteria_types)
+    return pd.Series(score, index=df.index)
+
+def load_criteria_config(config_path="backend/criteria_config.json"):
+    """
+    Kriter isimleri ve tiplerini config dosyasından okur.
+    Dönüş: (isim listesi, tip numpy array)
+    """
+    if not os.path.exists(config_path):
+        logger.error(f"Kriter config dosyası bulunamadı: {config_path}")
+        return [], np.array([])
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    names = [c["name"] for c in config["criteria"]]
+    types = np.array([1 if c["type"] == "benefit" else 0 for c in config["criteria"]])
+    return names, types
+
+def fetch_financial_ratios_from_firestore(collection="financials", quarter="2024Q1", required_fields=None):
+    """
+    Firestore'dan belirtilen koleksiyondan finansal oranları çeker.
+    Eksik/null alanları otomatik atar. DataFrame döndürür.
+    required_fields: zorunlu oranlar listesi (örn. ["NetProfitMargin", "ROE", "DebtEquity"])
+    """
+    if required_fields is None:
+        required_fields = ["NetProfitMargin", "ROE", "DebtEquity"]
+    # Firestore bağlantısı
+    try:
+        cred = credentials.Certificate("/Users/caglarilhan/borsailhanos/backend/bist-backend-key.json")
         try:
-            if not self.db:
-                return []
-                
-            signals_ref = self.db.collection('latest_signals')
-            docs = signals_ref.stream()
-            
-            signals = []
-            for doc in docs:
-                signal_data = doc.to_dict()
-                # Timestamp'ı string'e çevir (JSON serializable)
-                if 'timestamp' in signal_data:
-                    signal_data['timestamp'] = signal_data['timestamp'].isoformat()
-                signals.append(signal_data)
-                
-            return signals
-            
-        except Exception as e:
-            print(f"❌ Sinyal çekme hatası: {e}")
-            return []
+            firebase_admin.get_app()
+        except ValueError:
+            firebase_admin.initialize_app(cred)
+        db = firestore.client()
+    except Exception as e:
+        logger.error(f"Firestore bağlantı hatası: {e}")
+        return pd.DataFrame()
+    # Veri çekme
+    docs = db.collection(collection).where("quarter", "==", quarter).stream()
+    records = []
+    for doc in docs:
+        data = doc.to_dict()
+        symbol = data.get("symbol")
+        if not symbol:
+            continue
+        # Null/eksik kontrolü
+        if any(data.get(f) is None for f in required_fields):
+            logger.warning(f"{symbol}: Eksik oran/alan, atlandı.")
+            continue
+        record = {f: data.get(f) for f in required_fields}
+        record["symbol"] = symbol
+        records.append(record)
+    if not records:
+        logger.error("Firestore'dan uygun veri çekilemedi!")
+        return pd.DataFrame()
+    df = pd.DataFrame(records).set_index("symbol")
+    logger.info(f"{len(df)} şirketin oranları başarıyla çekildi.")
+    return df
+
+# Test fonksiyonu
+if __name__ == "__main__":
+    bist_symbols = ["SISE.IS", "THYAO.IS", "GARAN.IS"]
+    print("BIST fiyatları (yfinance):")
+    prices = fetch_prices_modular(bist_symbols, source="yfinance", country="turkey")
+    for sym, price in prices.items():
+        print(f"{sym}: {price}")
+
+    us_symbols = ["AAPL", "MSFT", "TSLA"]
+    print("\nABD fiyatları (yfinance):")
+    us_prices = fetch_prices_modular(us_symbols, source="yfinance", country="usa")
+    for sym, price in us_prices.items():
+        print(f"{sym}: {price}")
+
+    print("\n--- Kriter Config Okuma Testi ---")
+    criteria_names, criteria_types = load_criteria_config()
+    print("Kriterler:", criteria_names)
+    print("Tipler:", criteria_types)
+
+    print("\n--- TOPSIS + Entropi Skor Testi ---")
+    # Örnek finansal oranlar
+    data = {
+        'NetProfitMargin': [12.3, 8.4, 15.2],
+        'ROE': [18, 12, 22],
+        'DebtEquity': [0.4, 0.8, 0.6]
+    }
+    symbols = ['SISE', 'EREGL', 'TUPRS']
+    df = pd.DataFrame(data, index=symbols)
+    # Kriter tipleri: 1=benefit, 0=cost
+    # criteria_types = np.array([1, 1, 0]) # Bu satır artık load_criteria_config'dan alınacak
+    scores = calculate_topsis_entropy_score(df, criteria_types)
+    print(scores.sort_values(ascending=False))
+
+    print("\n--- Firestore'dan Finansal Oran Çekme Testi (Config ile) ---")
+    df = fetch_financial_ratios_from_firestore(required_fields=criteria_names)
+    print(df.head())
+
+    if not df.empty:
+        print("\n--- TOPSIS + Entropi Skor (Config ile) ---")
+        scores = calculate_topsis_entropy_score(df, criteria_types)
+        print(scores.sort_values(ascending=False))
