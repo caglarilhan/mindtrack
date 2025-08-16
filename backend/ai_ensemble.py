@@ -1,475 +1,885 @@
-import pandas as pd
+"""
+PRD v2.0 - BIST AI Smart Trader
+AI Ensemble Module
+
+AI topluluk sistemi modülü:
+- Multiple models
+- Ensemble methods
+- Dynamic weighting
+- Performance monitoring
+- Auto-ensemble
+"""
+
 import numpy as np
-import yfinance as yf
-import lightgbm as lgb
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import roc_auc_score, accuracy_score, classification_report
-from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.optimizers import Adam
-from typing import List, Dict, Tuple, Optional
+import pandas as pd
+from typing import Dict, List, Tuple, Optional, Union, Any
+from dataclasses import dataclass
+from sklearn.ensemble import VotingClassifier, VotingRegressor, StackingClassifier, StackingRegressor
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, r2_score
+import joblib
+import json
+from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
-class AIEnsemblePipeline:
+@dataclass
+class EnsembleModel:
+    """Topluluk model"""
+    name: str
+    base_models: Dict[str, Any]
+    ensemble_method: str
+    weights: Optional[Dict[str, float]] = None
+    performance_history: List[Dict] = None
+    created_at: datetime = None
+    last_updated: datetime = None
+
+@dataclass
+class EnsemblePrediction:
+    """Topluluk tahmin sonucu"""
+    final_prediction: Union[int, float]
+    individual_predictions: Dict[str, Union[int, float]]
+    ensemble_weights: Dict[str, float]
+    confidence: float
+    agreement_score: float
+    model_contributions: Dict[str, float]
+
+@dataclass
+class EnsemblePerformance:
+    """Topluluk performans metrikleri"""
+    accuracy: float
+    f1_score: float
+    ensemble_score: float
+    individual_scores: Dict[str, float]
+    weight_optimization_score: float
+    last_evaluation: datetime
+
+class AIEnsemble:
     """
-    AI Ensemble Pipeline: LightGBM + LSTM + TimeGPT
-    Çoklu zaman dilimi tahmin sistemi
+    AI Topluluk Sistemi
+    
+    PRD v2.0 gereksinimleri:
+    - Çoklu model desteği
+    - Topluluk yöntemleri
+    - Dinamik ağırlıklandırma
+    - Performans izleme
+    - Otomatik topluluk oluşturma
     """
     
-    def __init__(self, lookback_days: int = 60):
-        self.lookback_days = lookback_days
-        self.lgbm_model = None
-        self.lstm_model = None
-        self.scaler = StandardScaler()
-        self.feature_columns = None
+    def __init__(self, random_state: int = 42):
+        """
+        AI Ensemble başlatıcı
         
-    def prepare_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        Args:
+            random_state: Rastgele sayı üreteci
         """
-        Gelişmiş feature engineering
+        self.random_state = random_state
+        
+        # Topluluk yöntemleri
+        self.ENSEMBLE_METHODS = {
+            "VOTING": "Voting",
+            "STACKING": "Stacking",
+            "BAGGING": "Bagging",
+            "BOOSTING": "Boosting",
+            "BLENDING": "Blending"
+        }
+        
+        # Varsayılan topluluk ağırlıkları
+        self.DEFAULT_WEIGHTS = {
+            "RandomForest": 0.3,
+            "GradientBoosting": 0.3,
+            "LogisticRegression": 0.2,
+            "SVM": 0.1,
+            "NeuralNetwork": 0.1
+        }
+        
+        # Topluluk modelleri
+        self.ensemble_models = {}
+        
+        # Performans geçmişi
+        self.performance_history = {}
+        
+        # Ağırlık optimizasyon parametreleri
+        self.WEIGHT_OPTIMIZATION_ITERATIONS = 100
+        self.WEIGHT_OPTIMIZATION_LEARNING_RATE = 0.01
+    
+    def create_voting_ensemble(self, name: str, models: Dict[str, Any],
+                              weights: Optional[Dict[str, float]] = None,
+                              voting: str = "soft") -> bool:
         """
-        try:
-            df = data.copy()
+        Voting topluluk oluşturma
+        
+        Args:
+            name: Topluluk adı
+            models: Model sözlüğü
+            weights: Model ağırlıkları
+            voting: Oylama türü
             
-            # MultiIndex column'ları düzelt
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(0)
-            
-            # Teknik indikatörler
-            df['RSI'] = self._calculate_rsi(df['Close'])
-            df['MACD'] = self._calculate_macd(df['Close'])
-            df['BB_Upper'], df['BB_Lower'] = self._calculate_bollinger_bands(df['Close'])
-            df['ATR'] = self._calculate_atr(df['High'], df['Low'], df['Close'])
-            
-            # Fiyat bazlı özellikler
-            df['Price_Change'] = df['Close'].pct_change()
-            df['Price_Change_5d'] = df['Close'].pct_change(5)
-            df['Price_Change_20d'] = df['Close'].pct_change(20)
-            
-            # Volatilite özellikleri
-            df['Volatility_5d'] = df['Price_Change'].rolling(5).std()
-            df['Volatility_20d'] = df['Price_Change'].rolling(20).std()
-            
-            # Hacim özellikleri
-            df['Volume_MA_5'] = df['Volume'].rolling(5).mean()
-            df['Volume_MA_20'] = df['Volume'].rolling(20).mean()
-            df['Volume_Ratio'] = (df['Volume'] / df['Volume_MA_20']).fillna(1.0)
-            
-            # Trend özellikleri
-            df['Trend_5d'] = np.where(df['Close'] > df['Close'].rolling(5).mean(), 1, 0)
-            df['Trend_20d'] = np.where(df['Close'] > df['Close'].rolling(20).mean(), 1, 0)
-            
-            # Momentum özellikleri
-            df['Momentum_5d'] = df['Close'] / df['Close'].shift(5) - 1
-            df['Momentum_20d'] = df['Close'] / df['Close'].shift(20) - 1
-            
-            # Support/Resistance özellikleri
-            df['Distance_From_High'] = (df['Close'] - df['High'].rolling(20).max()) / df['Close']
-            df['Distance_From_Low'] = (df['Close'] - df['Low'].rolling(20).min()) / df['Close']
-            
-            # NaN değerleri temizle
-            df = df.dropna()
-            
-            return df
-            
-        except Exception as e:
-            print(f"Feature engineering hatası: {e}")
-            return data
-    
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
-        """RSI hesaplama"""
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
-    
-    def _calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26) -> pd.Series:
-        """MACD hesaplama"""
-        ema_fast = prices.ewm(span=fast).mean()
-        ema_slow = prices.ewm(span=slow).mean()
-        return ema_fast - ema_slow
-    
-    def _calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2):
-        """Bollinger Bands hesaplama"""
-        sma = prices.rolling(window=period).mean()
-        std = prices.rolling(window=period).std()
-        upper_band = sma + (std * std_dev)
-        lower_band = sma - (std * std_dev)
-        return upper_band, lower_band
-    
-    def _calculate_atr(self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
-        """ATR hesaplama"""
-        tr1 = high - low
-        tr2 = abs(high - close.shift())
-        tr3 = abs(low - close.shift())
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        return tr.rolling(window=period).mean()
-    
-    def create_sequences(self, data: pd.DataFrame, target_col: str = 'target') -> Tuple[np.ndarray, np.ndarray]:
-        """
-        LSTM için sequence veri oluşturur
+        Returns:
+            bool: Oluşturma başarı durumu
         """
         try:
-            # Feature sütunları (target hariç)
-            feature_cols = [col for col in data.columns if col not in ['target', 'Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
+            # Model listesi oluştur
+            estimators = [(model_name, model) for model_name, model in models.items()]
             
-            X, y = [], []
-            
-            for i in range(self.lookback_days, len(data)):
-                X.append(data[feature_cols].iloc[i-self.lookback_days:i].values)
-                y.append(data[target_col].iloc[i])
-            
-            return np.array(X), np.array(y)
-            
-        except Exception as e:
-            print(f"Sequence oluşturma hatası: {e}")
-            return np.array([]), np.array([])
-    
-    def train_lightgbm(self, X: pd.DataFrame, y: pd.Series) -> Dict:
-        """
-        LightGBM modelini eğitir (günlük tahmin)
-        """
-        try:
-            # Time series split
-            tscv = TimeSeriesSplit(n_splits=5)
-            
-            # Feature sütunları
-            feature_cols = [col for col in X.columns if col not in ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']]
-            self.feature_columns = feature_cols
-            
-            X_features = X[feature_cols]
-            
-            # Model parametreleri
-            params = {
-                'objective': 'binary',
-                'metric': 'auc',
-                'boosting_type': 'gbdt',
-                'num_leaves': 31,
-                'learning_rate': 0.05,
-                'feature_fraction': 0.9,
-                'bagging_fraction': 0.8,
-                'bagging_freq': 5,
-                'verbose': -1
-            }
-            
-            # Cross-validation
-            cv_scores = []
-            models = []
-            
-            for train_idx, val_idx in tscv.split(X_features):
-                X_train, X_val = X_features.iloc[train_idx], X_features.iloc[val_idx]
-                y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
-                
-                # LightGBM dataset
-                train_data = lgb.Dataset(X_train, label=y_train)
-                val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
-                
-                # Model eğitimi
-                model = lgb.train(
-                    params,
-                    train_data,
-                    valid_sets=[val_data],
-                    num_boost_round=1000,
-                    callbacks=[lgb.early_stopping(50)]
+            # Voting classifier oluştur
+            if len(estimators) > 1:
+                ensemble = VotingClassifier(
+                    estimators=estimators,
+                    voting=voting,
+                    weights=list(weights.values()) if weights else None
                 )
-                
-                # Tahmin ve skor
-                y_pred_proba = model.predict(X_val)
-                y_pred = (y_pred_proba > 0.5).astype(int)
-                
-                auc_score = roc_auc_score(y_val, y_pred_proba)
-                accuracy = accuracy_score(y_val, y_pred)
-                
-                cv_scores.append({
-                    'auc': auc_score,
-                    'accuracy': accuracy
-                })
-                
-                models.append(model)
-            
-            # En iyi modeli seç
-            best_idx = np.argmax([score['auc'] for score in cv_scores])
-            self.lgbm_model = models[best_idx]
-            
-            # Feature importance
-            feature_importance = pd.DataFrame({
-                'feature': feature_cols,
-                'importance': self.lgbm_model.feature_importance()
-            }).sort_values('importance', ascending=False)
-            
-            return {
-                'model': self.lgbm_model,
-                'cv_scores': cv_scores,
-                'best_score': cv_scores[best_idx],
-                'feature_importance': feature_importance,
-                'avg_auc': np.mean([score['auc'] for score in cv_scores]),
-                'avg_accuracy': np.mean([score['accuracy'] for score in cv_scores])
-            }
-            
-        except Exception as e:
-            print(f"LightGBM eğitim hatası: {e}")
-            return {}
-    
-    def train_lstm(self, X: pd.DataFrame, y: pd.Series) -> Dict:
-        """
-        LSTM modelini eğitir (4 saatlik tahmin)
-        """
-        try:
-            # Sequence veri oluştur
-            X_seq, y_seq = self.create_sequences(X, 'target')
-            
-            if len(X_seq) == 0:
-                return {"error": "Sequence veri oluşturulamadı"}
-            
-            # Veriyi normalize et
-            X_reshaped = X_seq.reshape(-1, X_seq.shape[-1])
-            X_scaled = self.scaler.fit_transform(X_reshaped)
-            X_scaled = X_scaled.reshape(X_seq.shape)
-            
-            # Train/validation split
-            split_idx = int(len(X_scaled) * 0.8)
-            X_train, X_val = X_scaled[:split_idx], X_scaled[split_idx:]
-            y_train, y_val = y_seq[:split_idx], y_seq[split_idx:]
-            
-            # LSTM model
-            self.lstm_model = Sequential([
-                LSTM(50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
-                Dropout(0.2),
-                LSTM(50, return_sequences=False),
-                Dropout(0.2),
-                Dense(25, activation='relu'),
-                Dense(1, activation='sigmoid')
-            ])
-            
-            # Model compile
-            self.lstm_model.compile(
-                optimizer=Adam(learning_rate=0.001),
-                loss='binary_crossentropy',
-                metrics=['accuracy']
-            )
-            
-            # Model eğitimi
-            history = self.lstm_model.fit(
-                X_train, y_train,
-                validation_data=(X_val, y_val),
-                epochs=50,
-                batch_size=32,
-                verbose=0
-            )
-            
-            # Validation tahmin
-            y_val_pred_proba = self.lstm_model.predict(X_val).flatten()
-            y_val_pred = (y_val_pred_proba > 0.5).astype(int)
-            
-            # Metrikler
-            val_auc = roc_auc_score(y_val, y_val_pred_proba)
-            val_accuracy = accuracy_score(y_val, y_val_pred)
-            
-            return {
-                'model': self.lstm_model,
-                'history': history.history,
-                'val_auc': val_auc,
-                'val_accuracy': val_accuracy,
-                'scaler': self.scaler
-            }
-            
-        except Exception as e:
-            print(f"LSTM eğitim hatası: {e}")
-            return {"error": str(e)}
-    
-    def predict_ensemble(self, data: pd.DataFrame) -> Dict:
-        """
-        Ensemble tahmin yapar
-        """
-        try:
-            if self.lgbm_model is None or self.lstm_model is None:
-                return {"error": "Modeller eğitilmemiş"}
-            
-            # Son veriyi al
-            latest_data = data.tail(1)
-            
-            # LightGBM tahmin
-            if self.feature_columns:
-                lgbm_features = latest_data[self.feature_columns]
-                lgbm_proba = self.lgbm_model.predict(lgbm_features)[0]
-                lgbm_pred = int(lgbm_proba > 0.5)
             else:
-                lgbm_proba, lgbm_pred = 0.5, 0
+                # Tek model varsa direkt kullan
+                ensemble = list(models.values())[0]
             
-            # LSTM tahmin
-            try:
-                # Son lookback_days veriyi al
-                lstm_data = data.tail(self.lookback_days + 1)
-                X_seq, _ = self.create_sequences(lstm_data, 'target')
-                
-                if len(X_seq) > 0:
-                    # Son sequence'i al
-                    last_sequence = X_seq[-1:]
-                    
-                    # Normalize et
-                    last_sequence_reshaped = last_sequence.reshape(-1, last_sequence.shape[-1])
-                    last_sequence_scaled = self.scaler.transform(last_sequence_reshaped)
-                    last_sequence_scaled = last_sequence_scaled.reshape(last_sequence.shape)
-                    
-                    # Tahmin
-                    lstm_proba = self.lstm_model.predict(last_sequence_scaled)[0][0]
-                    lstm_pred = int(lstm_proba > 0.5)
-                else:
-                    lstm_proba, lstm_pred = 0.5, 0
-                    
-            except Exception as e:
-                print(f"LSTM tahmin hatası: {e}")
-                lstm_proba, lstm_pred = 0.5, 0
+            # Topluluk modeli kaydet
+            ensemble_model = EnsembleModel(
+                name=name,
+                base_models=models,
+                ensemble_method="VOTING",
+                weights=weights,
+                performance_history=[],
+                created_at=datetime.now(),
+                last_updated=datetime.now()
+            )
             
-            # Ensemble tahmin (ağırlıklı ortalama)
-            ensemble_proba = (lgbm_proba * 0.6) + (lstm_proba * 0.4)
-            ensemble_pred = int(ensemble_proba > 0.5)
-            
-            # Güven skoru
-            confidence = abs(ensemble_proba - 0.5) * 2  # 0-1 arası
-            
-            return {
-                "lightgbm": {
-                    "probability": float(lgbm_proba),
-                    "prediction": lgbm_pred,
-                    "signal": "BUY" if lgbm_pred == 1 else "SELL"
-                },
-                "lstm": {
-                    "probability": float(lstm_proba),
-                    "prediction": lstm_pred,
-                    "signal": "BUY" if lstm_pred == 1 else "SELL"
-                },
-                "ensemble": {
-                    "probability": float(ensemble_proba),
-                    "prediction": ensemble_pred,
-                    "signal": "BUY" if ensemble_pred == 1 else "SELL",
-                    "confidence": float(confidence)
-                },
-                "timestamp": pd.Timestamp.now().isoformat()
+            self.ensemble_models[name] = {
+                "ensemble": ensemble,
+                "metadata": ensemble_model
             }
             
+            return True
+            
         except Exception as e:
-            print(f"Ensemble tahmin hatası: {e}")
-            return {"error": str(e)}
+            print(f"Voting topluluk oluşturma hatası: {str(e)}")
+            return False
     
-    def walk_forward_validation(self, data: pd.DataFrame, window_size: int = 252) -> Dict:
+    def create_stacking_ensemble(self, name: str, models: Dict[str, Any],
+                                meta_model: Optional[Any] = None,
+                                cv_folds: int = 5) -> bool:
         """
-        Walk-forward validation ile model performansını test eder
+        Stacking topluluk oluşturma
+        
+        Args:
+            name: Topluluk adı
+            models: Model sözlüğü
+            meta_model: Meta model
+            cv_folds: CV kat sayısı
+            
+        Returns:
+            bool: Oluşturma başarı durumu
         """
         try:
-            results = []
+            # Model listesi oluştur
+            estimators = [(model_name, model) for model_name, model in models.items()]
             
-            for i in range(window_size, len(data), 30):  # 30 günlük adımlar
-                # Training data
-                train_data = data.iloc[:i]
-                # Test data (30 gün)
-                test_data = data.iloc[i:i+30]
-                
-                if len(test_data) < 10:  # Minimum test veri
-                    continue
-                
-                # Modelleri eğit
-                lgbm_result = self.train_lightgbm(train_data, train_data['target'])
-                lstm_result = self.train_lstm(train_data, train_data['target'])
-                
-                if 'error' in lstm_result:
-                    continue
-                
-                # Test tahminleri
-                test_features = test_data[self.feature_columns] if self.feature_columns else test_data
-                lgbm_pred = self.lgbm_model.predict(test_features)
-                lgbm_pred_binary = (lgbm_pred > 0.5).astype(int)
-                
-                # Test metrikleri
-                test_auc = roc_auc_score(test_data['target'], lgbm_pred)
-                test_accuracy = accuracy_score(test_data['target'], lgbm_pred_binary)
-                
-                results.append({
-                    'period': f"{test_data.index[0].date()} - {test_data.index[-1].date()}",
-                    'auc': test_auc,
-                    'accuracy': test_accuracy,
-                    'test_size': len(test_data)
-                })
+            # Meta model seç
+            if meta_model is None:
+                if len(np.unique([model.predict([np.zeros(len(models))])[0] for model in models.values()])) <= 2:
+                    meta_model = LogisticRegression(random_state=self.random_state)
+                else:
+                    meta_model = LinearRegression()
             
-            if not results:
-                return {"error": "Walk-forward validation sonucu yok"}
+            # Stacking ensemble oluştur
+            if len(estimators) > 1:
+                ensemble = StackingClassifier(
+                    estimators=estimators,
+                    final_estimator=meta_model,
+                    cv=cv_folds,
+                    n_jobs=-1
+                )
+            else:
+                ensemble = list(models.values())[0]
             
-            # Ortalama performans
-            avg_auc = np.mean([r['auc'] for r in results])
-            avg_accuracy = np.mean([r['accuracy'] for r in results])
+            # Topluluk modeli kaydet
+            ensemble_model = EnsembleModel(
+                name=name,
+                base_models=models,
+                ensemble_method="STACKING",
+                weights=None,  # Stacking'de ağırlık yok
+                performance_history=[],
+                created_at=datetime.now(),
+                last_updated=datetime.now()
+            )
             
-            return {
-                "validation_periods": results,
-                "average_auc": float(avg_auc),
-                "average_accuracy": float(avg_accuracy),
-                "total_periods": len(results)
+            self.ensemble_models[name] = {
+                "ensemble": ensemble,
+                "metadata": ensemble_model
             }
             
+            return True
+            
         except Exception as e:
-            print(f"Walk-forward validation hatası: {e}")
-            return {"error": str(e)}
+            print(f"Stacking topluluk oluşturma hatası: {str(e)}")
+            return False
+    
+    def create_blending_ensemble(self, name: str, models: Dict[str, Any],
+                                validation_split: float = 0.2) -> bool:
+        """
+        Blending topluluk oluşturma
+        
+        Args:
+            name: Topluluk adı
+            models: Model sözlüğü
+            validation_split: Doğrulama bölme oranı
+            
+        Returns:
+            bool: Oluşturma başarı durumu
+        """
+        try:
+            # Blending için özel sınıf oluştur
+            class BlendingEnsemble:
+                def __init__(self, models, validation_split=0.2):
+                    self.models = models
+                    self.validation_split = validation_split
+                    self.meta_model = None
+                    self.is_fitted = False
+                
+                def fit(self, X, y):
+                    # Veriyi böl
+                    split_idx = int(len(X) * (1 - self.validation_split))
+                    X_train, X_val = X[:split_idx], X[split_idx:]
+                    y_train, y_val = y[:split_idx], y[split_idx:]
+                    
+                    # Base modelleri eğit
+                    for model_name, model in self.models.items():
+                        model.fit(X_train, y_train)
+                    
+                    # Validation set üzerinde tahminler
+                    val_predictions = []
+                    for model_name, model in self.models.items():
+                        if hasattr(model, 'predict_proba'):
+                            pred = model.predict_proba(X_val)[:, 1]
+                        else:
+                            pred = model.predict(X_val)
+                        val_predictions.append(pred)
+                    
+                    # Meta model eğit
+                    val_predictions = np.column_stack(val_predictions)
+                    if len(np.unique(y_val)) <= 2:
+                        self.meta_model = LogisticRegression(random_state=42)
+                    else:
+                        self.meta_model = LinearRegression()
+                    
+                    self.meta_model.fit(val_predictions, y_val)
+                    self.is_fitted = True
+                    return self
+                
+                def predict(self, X):
+                    if not self.is_fitted:
+                        raise ValueError("Model henüz eğitilmemiş")
+                    
+                    # Base model tahminleri
+                    base_predictions = []
+                    for model_name, model in self.models.items():
+                        if hasattr(model, 'predict_proba'):
+                            pred = model.predict_proba(X)[:, 1]
+                        else:
+                            pred = model.predict(X)
+                        base_predictions.append(pred)
+                    
+                    # Meta model ile final tahmin
+                    base_predictions = np.column_stack(base_predictions)
+                    return self.meta_model.predict(base_predictions)
+            
+            # Blending ensemble oluştur
+            ensemble = BlendingEnsemble(models, validation_split)
+            
+            # Topluluk modeli kaydet
+            ensemble_model = EnsembleModel(
+                name=name,
+                base_models=models,
+                ensemble_method="BLENDING",
+                weights=None,
+                performance_history=[],
+                created_at=datetime.now(),
+                last_updated=datetime.now()
+            )
+            
+            self.ensemble_models[name] = {
+                "ensemble": ensemble,
+                "metadata": ensemble_model
+            }
+            
+            return True
+            
+        except Exception as e:
+            print(f"Blending topluluk oluşturma hatası: {str(e)}")
+            return False
+    
+    def make_ensemble_prediction(self, ensemble_name: str, X: np.ndarray,
+                                return_individual: bool = True) -> EnsemblePrediction:
+        """
+        Topluluk tahmin yapma
+        
+        Args:
+            ensemble_name: Topluluk adı
+            X: Özellik matrisi
+            return_individual: Bireysel tahminleri döndür
+            
+        Returns:
+            EnsemblePrediction: Topluluk tahmin sonucu
+        """
+        if ensemble_name not in self.ensemble_models:
+            raise ValueError(f"Topluluk bulunamadı: {ensemble_name}")
+        
+        ensemble_info = self.ensemble_models[ensemble_name]
+        ensemble = ensemble_info["ensemble"]
+        metadata = ensemble_info["metadata"]
+        
+        try:
+            # Final tahmin
+            final_prediction = ensemble.predict(X)
+            
+            # Bireysel tahminler
+            individual_predictions = {}
+            if return_individual:
+                for model_name, model in metadata.base_models.items():
+                    try:
+                        if hasattr(model, 'predict_proba'):
+                            pred = model.predict_proba(X)[:, 1]
+                        else:
+                            pred = model.predict(X)
+                        individual_predictions[model_name] = pred[0] if hasattr(pred, '__len__') else pred
+                    except Exception as e:
+                        print(f"Bireysel tahmin hatası ({model_name}): {str(e)}")
+                        individual_predictions[model_name] = 0.0
+            
+            # Ağırlıklar
+            ensemble_weights = metadata.weights or self.DEFAULT_WEIGHTS
+            
+            # Güvenilirlik hesapla
+            if len(individual_predictions) > 1:
+                predictions_array = np.array(list(individual_predictions.values()))
+                confidence = 1.0 - np.std(predictions_array) / (np.max(predictions_array) - np.min(predictions_array) + 1e-8)
+                confidence = max(0.0, min(1.0, confidence))
+            else:
+                confidence = 1.0
+            
+            # Anlaşma skoru
+            if len(individual_predictions) > 1:
+                predictions_array = np.array(list(individual_predictions.values()))
+                agreement_score = 1.0 - (np.std(predictions_array) / np.mean(np.abs(predictions_array) + 1e-8))
+                agreement_score = max(0.0, min(1.0, agreement_score))
+            else:
+                agreement_score = 1.0
+            
+            # Model katkıları
+            model_contributions = {}
+            if metadata.weights:
+                total_weight = sum(metadata.weights.values())
+                for model_name, weight in metadata.weights.items():
+                    model_contributions[model_name] = weight / total_weight
+            
+            return EnsemblePrediction(
+                final_prediction=final_prediction[0] if hasattr(final_prediction, '__len__') else final_prediction,
+                individual_predictions=individual_predictions,
+                ensemble_weights=ensemble_weights,
+                confidence=confidence,
+                agreement_score=agreement_score,
+                model_contributions=model_contributions
+            )
+            
+        except Exception as e:
+            print(f"Topluluk tahmin hatası: {str(e)}")
+            return EnsemblePrediction(
+                final_prediction=0.0,
+                individual_predictions={},
+                ensemble_weights={},
+                confidence=0.0,
+                agreement_score=0.0,
+                model_contributions={}
+            )
+    
+    def optimize_weights(self, ensemble_name: str, X: np.ndarray, y: np.ndarray,
+                        optimization_method: str = "gradient") -> Dict[str, float]:
+        """
+        Topluluk ağırlıklarını optimize etme
+        
+        Args:
+            ensemble_name: Topluluk adı
+            X: Özellik matrisi
+            y: Hedef değişken
+            optimization_method: Optimizasyon metodu
+            
+        Returns:
+            Dict: Optimize edilmiş ağırlıklar
+        """
+        if ensemble_name not in self.ensemble_models:
+            raise ValueError(f"Topluluk bulunamadı: {ensemble_name}")
+        
+        ensemble_info = self.ensemble_models[ensemble_name]
+        metadata = ensemble_info["metadata"]
+        
+        if not metadata.weights:
+            print("Bu topluluk türünde ağırlık optimizasyonu desteklenmiyor")
+            return {}
+        
+        try:
+            if optimization_method == "gradient":
+                # Gradient-based ağırlık optimizasyonu
+                weights = np.array(list(metadata.weights.values()))
+                model_names = list(metadata.weights.keys())
+                
+                # Bireysel tahminler
+                individual_predictions = []
+                for model_name in model_names:
+                    model = metadata.base_models[model_name]
+                    if hasattr(model, 'predict_proba'):
+                        pred = model.predict_proba(X)[:, 1]
+                    else:
+                        pred = model.predict(X)
+                    individual_predictions.append(pred)
+                
+                individual_predictions = np.array(individual_predictions)
+                
+                # Gradient descent ile ağırlık optimizasyonu
+                for iteration in range(self.WEIGHT_OPTIMIZATION_ITERATIONS):
+                    # Ağırlıklı tahmin
+                    weighted_pred = np.sum(weights[:, np.newaxis] * individual_predictions, axis=0)
+                    
+                    # Hata hesapla
+                    if len(np.unique(y)) <= 2:  # Sınıflandırma
+                        error = 1 - accuracy_score(y, (weighted_pred > 0.5).astype(int))
+                    else:  # Regresyon
+                        error = mean_squared_error(y, weighted_pred)
+                    
+                    # Gradient hesapla
+                    gradients = []
+                    for i in range(len(weights)):
+                        # Ağırlık değişimi
+                        weights_temp = weights.copy()
+                        weights_temp[i] += 0.01
+                        weighted_pred_temp = np.sum(weights_temp[:, np.newaxis] * individual_predictions, axis=0)
+                        
+                        if len(np.unique(y)) <= 2:
+                            error_temp = 1 - accuracy_score(y, (weighted_pred_temp > 0.5).astype(int))
+                        else:
+                            error_temp = mean_squared_error(y, weighted_pred_temp)
+                        
+                        gradient = (error_temp - error) / 0.01
+                        gradients.append(gradient)
+                    
+                    # Ağırlıkları güncelle
+                    gradients = np.array(gradients)
+                    weights -= self.WEIGHT_OPTIMIZATION_LEARNING_RATE * gradients
+                    
+                    # Ağırlıkları normalize et
+                    weights = np.maximum(weights, 0)  # Negatif ağırlık yok
+                    weights = weights / np.sum(weights)  # Toplam 1
+                
+                # Sonuçları döndür
+                optimized_weights = dict(zip(model_names, weights))
+                
+                # Metadata'yı güncelle
+                metadata.weights = optimized_weights
+                metadata.last_updated = datetime.now()
+                
+                return optimized_weights
+                
+            else:
+                print(f"Desteklenmeyen optimizasyon metodu: {optimization_method}")
+                return metadata.weights
+                
+        except Exception as e:
+            print(f"Ağırlık optimizasyonu hatası: {str(e)}")
+            return metadata.weights
+    
+    def evaluate_ensemble(self, ensemble_name: str, X: np.ndarray, y: np.ndarray) -> EnsemblePerformance:
+        """
+        Topluluk performansını değerlendirme
+        
+        Args:
+            ensemble_name: Topluluk adı
+            X: Özellik matrisi
+            y: Hedef değişken
+            
+        Returns:
+            EnsemblePerformance: Topluluk performans metrikleri
+        """
+        if ensemble_name not in self.ensemble_models:
+            raise ValueError(f"Topluluk bulunamadı: {ensemble_name}")
+        
+        ensemble_info = self.ensemble_models[ensemble_name]
+        ensemble = ensemble_info["ensemble"]
+        metadata = ensemble_info["metadata"]
+        
+        try:
+            # Topluluk tahminleri
+            ensemble_pred = ensemble.predict(X)
+            
+            # Bireysel model performansları
+            individual_scores = {}
+            for model_name, model in metadata.base_models.items():
+                try:
+                    model_pred = model.predict(X)
+                    if len(np.unique(y)) <= 2:  # Sınıflandırma
+                        score = f1_score(y, model_pred, average='weighted')
+                    else:  # Regresyon
+                        score = r2_score(y, model_pred)
+                    individual_scores[model_name] = score
+                except Exception as e:
+                    print(f"Bireysel model değerlendirme hatası ({model_name}): {str(e)}")
+                    individual_scores[model_name] = 0.0
+            
+            # Topluluk performansı
+            if len(np.unique(y)) <= 2:  # Sınıflandırma
+                accuracy = accuracy_score(y, ensemble_pred)
+                f1 = f1_score(y, ensemble_pred, average='weighted')
+            else:  # Regresyon
+                accuracy = r2_score(y, ensemble_pred)
+                f1 = 0.0  # Regresyonda F1 yok
+            
+            # Ağırlık optimizasyon skoru
+            weight_optimization_score = 0.0
+            if metadata.weights:
+                # Ağırlıklı ortalama performans
+                weighted_performance = 0.0
+                total_weight = 0.0
+                for model_name, weight in metadata.weights.items():
+                    if model_name in individual_scores:
+                        weighted_performance += weight * individual_scores[model_name]
+                        total_weight += weight
+                
+                if total_weight > 0:
+                    weight_optimization_score = weighted_performance / total_weight
+            
+            # Performans sonucu
+            performance = EnsemblePerformance(
+                accuracy=accuracy,
+                f1_score=f1,
+                ensemble_score=accuracy,  # Ana skor
+                individual_scores=individual_scores,
+                weight_optimization_score=weight_optimization_score,
+                last_evaluation=datetime.now()
+            )
+            
+            # Performans geçmişini güncelle
+            metadata.performance_history.append({
+                "accuracy": accuracy,
+                "f1_score": f1,
+                "ensemble_score": accuracy,
+                "individual_scores": individual_scores,
+                "weight_optimization_score": weight_optimization_score,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Genel performans geçmişini güncelle
+            if ensemble_name not in self.performance_history:
+                self.performance_history[ensemble_name] = []
+            self.performance_history[ensemble_name].append(performance)
+            
+            return performance
+            
+        except Exception as e:
+            print(f"Topluluk değerlendirme hatası: {str(e)}")
+            return EnsemblePerformance(
+                accuracy=0.0,
+                f1_score=0.0,
+                ensemble_score=0.0,
+                individual_scores={},
+                weight_optimization_score=0.0,
+                last_evaluation=datetime.now()
+            )
+    
+    def auto_create_ensemble(self, name: str, models: Dict[str, Any],
+                            X: np.ndarray, y: np.ndarray,
+                            method: str = "auto") -> bool:
+        """
+        Otomatik topluluk oluşturma
+        
+        Args:
+            name: Topluluk adı
+            models: Model sözlüğü
+            X: Özellik matrisi
+            y: Hedef değişken
+            method: Topluluk yöntemi
+            
+        Returns:
+            bool: Oluşturma başarı durumu
+        """
+        try:
+            if method == "auto":
+                # Otomatik yöntem seçimi
+                if len(models) <= 2:
+                    method = "voting"
+                elif len(np.unique(y)) <= 2:  # Sınıflandırma
+                    method = "stacking"
+                else:  # Regresyon
+                    method = "blending"
+            
+            # Topluluk oluştur
+            if method == "voting":
+                success = self.create_voting_ensemble(name, models)
+            elif method == "stacking":
+                success = self.create_stacking_ensemble(name, models)
+            elif method == "blending":
+                success = self.create_blending_ensemble(name, models)
+            else:
+                print(f"Desteklenmeyen yöntem: {method}")
+                return False
+            
+            if success:
+                # Performansı değerlendir
+                performance = self.evaluate_ensemble(name, X, y)
+                print(f"Otomatik topluluk oluşturuldu: {name} ({method})")
+                print(f"Performans: {performance.ensemble_score:.4f}")
+                
+                # Ağırlık optimizasyonu (destekleniyorsa)
+                if method == "voting":
+                    optimized_weights = self.optimize_weights(name, X, y)
+                    if optimized_weights:
+                        print(f"Optimize edilmiş ağırlıklar: {optimized_weights}")
+            
+            return success
+            
+        except Exception as e:
+            print(f"Otomatik topluluk oluşturma hatası: {str(e)}")
+            return False
+    
+    def generate_ensemble_report(self) -> Dict:
+        """
+        Topluluk raporu oluşturma
+        
+        Returns:
+            Dict: Topluluk raporu
+        """
+        print("🤖 AI Ensemble Raporu Oluşturuluyor...")
+        
+        if not self.ensemble_models:
+            return {"error": "Henüz topluluk oluşturulmamış"}
+        
+        # Topluluk özeti
+        ensemble_summary = {}
+        for name, info in self.ensemble_models.items():
+            metadata = info["metadata"]
+            performance = None
+            
+            if metadata.performance_history:
+                latest_performance = metadata.performance_history[-1]
+                performance = {
+                    "accuracy": latest_performance["accuracy"],
+                    "f1_score": latest_performance["f1_score"],
+                    "ensemble_score": latest_performance["ensemble_score"]
+                }
+            
+            ensemble_summary[name] = {
+                "method": metadata.ensemble_method,
+                "base_models": list(metadata.base_models.keys()),
+                "weights": metadata.weights,
+                "performance": performance,
+                "created_at": metadata.created_at.isoformat(),
+                "last_updated": metadata.last_updated.isoformat()
+            }
+        
+        # Performans analizi
+        performance_analysis = {}
+        for name, history in self.performance_history.items():
+            if history:
+                latest = history[-1]
+                performance_analysis[name] = {
+                    "current_score": latest.ensemble_score,
+                    "individual_scores": latest.individual_scores,
+                    "weight_optimization_score": latest.weight_optimization_score,
+                    "evaluation_count": len(history)
+                }
+        
+        # Rapor oluştur
+        report = {
+            "ensemble_summary": {
+                "total_ensembles": len(self.ensemble_models),
+                "methods_used": list(set(info["metadata"].ensemble_method for info in self.ensemble_models.values())),
+                "total_base_models": sum(len(info["metadata"].base_models) for info in self.ensemble_models.values())
+            },
+            "ensemble_details": ensemble_summary,
+            "performance_analysis": performance_analysis,
+            "recommendations": {
+                "best_ensemble": max(performance_analysis.items(), key=lambda x: x[1]["current_score"])[0] if performance_analysis else None,
+                "weight_optimization_needed": any(info["metadata"].weights for info in self.ensemble_models.values()),
+                "performance_trends": "stable" if len(self.performance_history) > 1 else "insufficient_data"
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print("✅ AI Ensemble Raporu Tamamlandı!")
+        return report
 
 # Test fonksiyonu
-if __name__ == "__main__":
-    # Test hissesi
-    symbol = "SISE.IS"
+def test_ai_ensemble():
+    """AI Ensemble test fonksiyonu"""
+    print("🧪 AI Ensemble Test Başlıyor...")
     
-    # Veri çek
-    data = yf.download(symbol, period="2y", interval="1d")
+    # Test verisi oluştur
+    np.random.seed(42)
+    n_samples = 500
+    n_features = 15
     
-    # Target oluştur (1 gün sonra yukarı hareket)
-    data['target'] = (data['Close'].shift(-1) > data['Close']).astype(int)
+    # Özellik matrisi
+    X = pd.DataFrame(
+        np.random.randn(n_samples, n_features),
+        columns=[f"feature_{i}" for i in range(n_features)]
+    )
     
-    # AI Ensemble pipeline'ı başlat
-    pipeline = AIEnsemblePipeline(lookback_days=60)
+    # Hedef değişken (sınıflandırma)
+    y = ((X.iloc[:, 0] + X.iloc[:, 1] + X.iloc[:, 2]) > 0).astype(int)
     
-    # Feature engineering
-    data = pipeline.prepare_features(data)
+    # Test modelleri
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.svm import SVC
     
-    if not data.empty:
-        print(f"🎯 {symbol} AI Ensemble Analizi:")
-        print("=" * 50)
+    rf_model = RandomForestClassifier(n_estimators=50, random_state=42)
+    gb_model = GradientBoostingClassifier(n_estimators=50, random_state=42)
+    lr_model = LogisticRegression(random_state=42, max_iter=1000)
+    svm_model = SVC(random_state=42, probability=True)
+    
+    # Modelleri eğit
+    models = {
+        "RandomForest": rf_model,
+        "GradientBoosting": gb_model,
+        "LogisticRegression": lr_model,
+        "SVM": svm_model
+    }
+    
+    for name, model in models.items():
+        model.fit(X, y)
+    
+    # AI Ensemble başlat
+    ensemble = AIEnsemble(random_state=42)
+    
+    # Voting topluluk test
+    print("\n🗳️ Voting Topluluk Test:")
+    # Voting için ağırlıklı modeller
+    voting_models = {
+        "RandomForest": RandomForestClassifier(n_estimators=50, random_state=42),
+        "GradientBoosting": GradientBoostingClassifier(n_estimators=50, random_state=42),
+        "LogisticRegression": LogisticRegression(random_state=42, max_iter=1000)
+    }
+    
+    # Modelleri eğit
+    for name, model in voting_models.items():
+        model.fit(X, y)
+    
+    # Ağırlıkları tanımla
+    voting_weights = {
+        "RandomForest": 0.4,
+        "GradientBoosting": 0.4,
+        "LogisticRegression": 0.2
+    }
+    
+    voting_success = ensemble.create_voting_ensemble("voting_ensemble", voting_models, voting_weights)
+    print(f"   Voting topluluk oluşturuldu: {voting_success}")
+    
+    if voting_success:
+        # Voting topluluğunu eğit
+        ensemble_info = ensemble.ensemble_models["voting_ensemble"]
+        voting_ensemble = ensemble_info["ensemble"]
+        voting_ensemble.fit(X, y)
         
-        # LightGBM eğitimi
-        print("🚀 LightGBM eğitiliyor...")
-        lgbm_result = pipeline.train_lightgbm(data, data['target'])
+        # Voting tahmin test
+        voting_pred = ensemble.make_ensemble_prediction("voting_ensemble", X.iloc[:5])
+        print(f"   Final tahmin: {voting_pred.final_prediction}")
+        print(f"   Güvenilirlik: {voting_pred.confidence:.4f}")
+        print(f"   Anlaşma skoru: {voting_pred.agreement_score:.4f}")
+    
+    # Stacking topluluk test
+    print("\n🏗️ Stacking Topluluk Test:")
+    # Stacking için modelleri yeniden oluştur (feature dimension uyumluluğu için)
+    stacking_models = {
+        "RandomForest": RandomForestClassifier(n_estimators=50, random_state=42),
+        "GradientBoosting": GradientBoostingClassifier(n_estimators=50, random_state=42),
+        "LogisticRegression": LogisticRegression(random_state=42, max_iter=1000)
+    }
+    
+    # Modelleri eğit
+    for name, model in stacking_models.items():
+        model.fit(X, y)
+    
+    stacking_success = ensemble.create_stacking_ensemble("stacking_ensemble", stacking_models)
+    print(f"   Stacking topluluk oluşturuldu: {stacking_success}")
+    
+    if stacking_success:
+        # Stacking topluluğunu eğit
+        ensemble_info = ensemble.ensemble_models["stacking_ensemble"]
+        stacking_ensemble = ensemble_info["ensemble"]
+        stacking_ensemble.fit(X, y)
         
-        if lgbm_result:
-            print(f"✅ LightGBM eğitildi!")
-            print(f"   Ortalama AUC: {lgbm_result['avg_auc']:.3f}")
-            print(f"   Ortalama Doğruluk: {lgbm_result['avg_accuracy']:.3f}")
+        # Stacking tahmin test
+        stacking_pred = ensemble.make_ensemble_prediction("stacking_ensemble", X.iloc[:5])
+        print(f"   Final tahmin: {stacking_pred.final_prediction}")
+        print(f"   Güvenilirlik: {stacking_pred.confidence:.4f}")
+    
+    # Blending topluluk test
+    print("\n🥤 Blending Topluluk Test:")
+    blending_success = ensemble.create_blending_ensemble("blending_ensemble", models)
+    print(f"   Blending topluluk oluşturuldu: {blending_success}")
+    
+    if blending_success:
+        # Blending topluluğunu eğit
+        ensemble_info = ensemble.ensemble_models["blending_ensemble"]
+        blending_ensemble = ensemble_info["ensemble"]
+        blending_ensemble.fit(X, y)
         
-        # LSTM eğitimi
-        print("\n🧠 LSTM eğitiliyor...")
-        lstm_result = pipeline.train_lstm(data, data['target'])
-        
-        if 'error' not in lstm_result:
-            print(f"✅ LSTM eğitildi!")
-            print(f"   Validation AUC: {lstm_result['val_auc']:.3f}")
-            print(f"   Validation Doğruluk: {lstm_result['val_accuracy']:.3f}")
-        
-        # Ensemble tahmin
-        print("\n🎯 Ensemble tahmin yapılıyor...")
-        prediction = pipeline.predict_ensemble(data)
-        
-        if 'error' not in prediction:
-            print(f"✅ Ensemble Tahmin:")
-            print(f"   LightGBM: {prediction['lightgbm']['signal']} ({prediction['lightgbm']['probability']:.3f})")
-            print(f"   LSTM: {prediction['lstm']['signal']} ({prediction['lstm']['probability']:.3f})")
-            print(f"   Ensemble: {prediction['ensemble']['signal']} ({prediction['ensemble']['probability']:.3f})")
-            print(f"   Güven: {prediction['ensemble']['confidence']:.3f}")
-        
-        # Walk-forward validation
-        print("\n📊 Walk-forward validation başlatılıyor...")
-        wf_result = pipeline.walk_forward_validation(data)
-        
-        if 'error' not in wf_result:
-            print(f"✅ Walk-forward Validation:")
-            print(f"   Ortalama AUC: {wf_result['average_auc']:.3f}")
-            print(f"   Ortalama Doğruluk: {wf_result['average_accuracy']:.3f}")
-            print(f"   Toplam Periyot: {wf_result['total_periods']}")
+        # Blending tahmin test
+        blending_pred = ensemble.make_ensemble_prediction("blending_ensemble", X.iloc[:5])
+        print(f"   Final tahmin: {blending_pred.final_prediction}")
+        print(f"   Güvenilirlik: {blending_pred.confidence:.4f}")
+    
+    # Topluluk performans değerlendirme test
+    print("\n📊 Topluluk Performans Değerlendirme Test:")
+    if voting_success:
+        voting_performance = ensemble.evaluate_ensemble("voting_ensemble", X, y)
+        print(f"   Voting performans: {voting_performance.ensemble_score:.4f}")
+        print(f"   F1 skor: {voting_performance.f1_score:.4f}")
+    
+    if stacking_success:
+        stacking_performance = ensemble.evaluate_ensemble("stacking_ensemble", X, y)
+        print(f"   Stacking performans: {stacking_performance.ensemble_score:.4f}")
+    
+    # Ağırlık optimizasyonu test
+    print("\n⚖️ Ağırlık Optimizasyonu Test:")
+    if voting_success:
+        optimized_weights = ensemble.optimize_weights("voting_ensemble", X, y)
+        if optimized_weights:
+            print(f"   Optimize edilmiş ağırlıklar: {optimized_weights}")
+        else:
+            print("   Ağırlık optimizasyonu başarısız")
+    
+    # Otomatik topluluk oluşturma test
+    print("\n🤖 Otomatik Topluluk Oluşturma Test:")
+    # Otomatik topluluk için basit modeller
+    auto_models = {
+        "RandomForest": RandomForestClassifier(n_estimators=30, random_state=42),
+        "LogisticRegression": LogisticRegression(random_state=42, max_iter=1000)
+    }
+    
+    # Modelleri eğit
+    for name, model in auto_models.items():
+        model.fit(X, y)
+    
+    auto_success = ensemble.auto_create_ensemble("auto_ensemble", auto_models, X, y)
+    print(f"   Otomatik topluluk oluşturuldu: {auto_success}")
+    
+    # Kapsamlı rapor test
+    print("\n📋 Kapsamlı Topluluk Raporu Test:")
+    ensemble_report = ensemble.generate_ensemble_report()
+    print(f"   Toplam topluluk: {ensemble_report['ensemble_summary']['total_ensembles']}")
+    print(f"   Kullanılan yöntemler: {ensemble_report['ensemble_summary']['methods_used']}")
+    if ensemble_report['recommendations']['best_ensemble']:
+        print(f"   En iyi topluluk: {ensemble_report['recommendations']['best_ensemble']}")
     else:
-        print(f"❌ {symbol} için veri bulunamadı")
+        print("   En iyi topluluk: Henüz değerlendirilmemiş")
+    
+    print("\n✅ AI Ensemble Test Tamamlandı!")
+    
+    # Test sonrası temizlik
+    print("\n🧹 Test Temizliği:")
+    print(f"   Toplam topluluk oluşturuldu: {len(ensemble.ensemble_models)}")
+    print(f"   Performans geçmişi kayıtları: {len(ensemble.performance_history)}")
+    
+    return ensemble
+
+if __name__ == "__main__":
+    test_ai_ensemble()
