@@ -1,0 +1,40 @@
+# PRD v2.0 - BIST AI Smart Trader Production Requirements
+# Minimal production dependencies for Docker deployment
+
+# Core Framework
+fastapi==0.115.14
+uvicorn[standard]==0.35.0
+
+# Firebase & Database
+firebase-admin==6.9.0
+
+# Data Processing
+yfinance==0.2.64
+pandas==2.3.1
+numpy==2.0.2
+
+# Technical Analysis
+ta==0.11.0
+
+# Machine Learning (Core)
+scikit-learn==1.6.1
+lightgbm==4.6.0
+
+# Financial Analysis
+pymcdm==1.2.0
+financetoolkit==1.6.4
+
+# News & Sentiment
+newsapi-python==0.2.6
+
+# HTTP & WebSocket
+aiohttp==3.9.1
+websockets>=13.0
+
+# Utilities
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Monitoring
+prometheus-client==0.19.0

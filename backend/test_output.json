@@ -1,0 +1,15 @@
+{
+  "timestamp": "2024-01-31T15:30:00",
+  "status": "success",
+  "data": {
+    "symbol": ["SISE.IS", "TUPRS.IS", "ASELS.IS"],
+    "score": [0.75, 0.68, 0.82],
+    "action": ["BUY", "HOLD", "BUY"],
+    "confidence": [85, 60, 90]
+  },
+  "summary": {
+    "total_symbols": 3,
+    "buy_signals": 2,
+    "avg_score": 0.75
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "timestamp": "2025-08-14T09:30:44.847257",
+  "horizon_days": 5,
+  "top_k": 3,
+  "threshold": 0.68,
+  "top_k_results": [
+    {
+      "symbol": "ASELS.IS",
+      "p_up": 0.5290723262798722,
+      "prob_1d": 0.5090516052164287,
+      "prob_5d": 0.566253665397696,
+      "action": "HOLD",
+      "auc_1d": 0.5410101010101009,
+      "auc_5d": 0.6953628959988613,
+      "top_features": [
+        "vol_chg",
+        "rsi14",
+        "bb_width"
+      ],
+      "data_points": 500,
+      "threshold": 0.58,
+      "regime_trend": false,
+      "regime_calm": true,
+      "regime_adx": 0
+    },
+    {
+      "symbol": "SISE.IS",
+      "p_up": 0.4770918917773751,
+      "prob_1d": 0.3259170653907496,
+      "prob_5d": 0.7578451407811081,
+      "action": "HOLD",
+      "auc_1d": 0.522020202020202,
+      "auc_5d": 0.351946706166655,
+      "top_features": [
+        "ema10",
+        "ret_1",
+        "ret_3"
+      ],
+      "data_points": 500,
+      "threshold": 0.58,
+      "regime_trend": false,
+      "regime_calm": true,
+      "regime_adx": 0
+    },
+    {
+      "symbol": "TUPRS.IS",
+      "p_up": 0.47304183544204115,
+      "prob_1d": 0.3639174110954446,
+      "prob_5d": 0.6757014806571491,
+      "action": "HOLD",
+      "auc_1d": 0.49059623849539824,
+      "auc_5d": 0.4198238389393698,
+      "top_features": [
+        "obv",
+        "ema10",
+        "rsi14"
+      ],
+      "data_points": 500,
+      "threshold": 0.58,
+      "regime_trend": false,
+      "regime_calm": true,
+      "regime_adx": 0
+    }
+  ],
+  "all_results": [
+    {
+      "symbol": "ASELS.IS",
+      "p_up": 0.5290723262798722,
+      "action": "HOLD",
+      "prob_1d": 0.5090516052164287,
+      "prob_5d": 0.566253665397696
+    },
+    {
+      "symbol": "SISE.IS",
+      "p_up": 0.4770918917773751,
+      "action": "HOLD",
+      "prob_1d": 0.3259170653907496,
+      "prob_5d": 0.7578451407811081
+    },
+    {
+      "symbol": "TUPRS.IS",
+      "p_up": 0.47304183544204115,
+      "action": "HOLD",
+      "prob_1d": 0.3639174110954446,
+      "prob_5d": 0.6757014806571491
+    }
+  ],
+  "summary": {
+    "total_symbols": 3,
+    "buy_signals": 0,
+    "hold_signals": 3,
+    "avg_score": 0.4930686844997629,
+    "avg_prob_1d": 0.39962869390087424,
+    "avg_prob_5d": 0.6666000956119843
+  }
+}

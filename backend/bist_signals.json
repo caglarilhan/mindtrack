@@ -1,0 +1,58 @@
+{
+  "timestamp": "2024-01-31T15:35:00",
+  "status": "success",
+  "total_symbols": 10,
+  "results": {
+    "SISE.IS": {
+      "score": 0.82,
+      "action": "BUY",
+      "confidence": 82,
+      "risk_level": "DÜŞÜK",
+      "trend": "YÜKSELIŞ",
+      "target_price": 108.20,
+      "stop_loss": 97.90
+    },
+    "TUPRS.IS": {
+      "score": 0.68,
+      "action": "HOLD",
+      "confidence": 54,
+      "risk_level": "ORTA",
+      "trend": "YÜKSELIŞ",
+      "target_price": 106.80,
+      "stop_loss": 96.60
+    },
+    "ASELS.IS": {
+      "score": 0.91,
+      "action": "BUY",
+      "confidence": 91,
+      "risk_level": "DÜŞÜK",
+      "trend": "YÜKSELIŞ",
+      "target_price": 109.10,
+      "stop_loss": 95.45
+    },
+    "GARAN.IS": {
+      "score": 0.75,
+      "action": "BUY",
+      "confidence": 75,
+      "risk_level": "ORTA",
+      "trend": "YÜKSELIŞ",
+      "target_price": 107.50,
+      "stop_loss": 96.25
+    },
+    "KCHOL.IS": {
+      "score": 0.58,
+      "action": "HOLD",
+      "confidence": 46,
+      "risk_level": "ORTA",
+      "trend": "DÜŞÜŞ",
+      "target_price": 105.80,
+      "stop_loss": 97.10
+    }
+  },
+  "summary": {
+    "buy_signals": 3,
+    "hold_signals": 2,
+    "sell_signals": 0,
+    "avg_score": 0.748
+  }
+}
