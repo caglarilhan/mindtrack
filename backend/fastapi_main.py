@@ -28,6 +28,7 @@ try:
     from macro_regime_detector import MacroRegimeDetector
     from auto_backtest_walkforward import AutoBacktestWalkForward
     from bist_performance_tracker import BISTPerformanceTracker
+    from accuracy_optimizer import AccuracyOptimizer
     from firestore_schema import FirestoreSchema
     from config import config
 except ImportError as e:
@@ -65,6 +66,7 @@ dupont_analyzer = None
 macro_detector = None
 backtest_engine = None
 performance_tracker = None
+accuracy_optimizer = None
 firestore_schema = None
 
 @app.on_event("startup")
@@ -72,7 +74,7 @@ async def startup_event():
     """Uygulama başlangıcında çalışır"""
     global websocket_connector, topsis_ranking, fundamental_analyzer
     global technical_engine, ai_ensemble, rl_agent, sentiment_engine
-    global dupont_analyzer, macro_detector, backtest_engine, performance_tracker, firestore_schema
+    global dupont_analyzer, macro_detector, backtest_engine, performance_tracker, accuracy_optimizer, firestore_schema
     
     try:
         logger.info("🚀 BIST AI Smart Trader başlatılıyor...")
@@ -147,6 +149,13 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"BIST Performance Tracker hatası: {e}")
             performance_tracker = None
+            
+        try:
+            accuracy_optimizer = AccuracyOptimizer()
+            logger.info("✅ Accuracy Optimizer başlatıldı")
+        except Exception as e:
+            logger.warning(f"Accuracy Optimizer hatası: {e}")
+            accuracy_optimizer = None
         
         # WebSocket connector (demo mode)
         websocket_connector = WebSocketConnector(
@@ -741,6 +750,129 @@ async def export_performance_csv():
         raise
     except Exception as e:
         logger.error(f"CSV export hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Accuracy Optimizer Endpoints
+@app.post("/accuracy/train/{symbol}")
+async def train_accuracy_model(symbol: str):
+    """Hisse için doğruluk modeli eğit"""
+    try:
+        if accuracy_optimizer is None:
+            raise HTTPException(status_code=503, detail="Accuracy optimizer hazır değil")
+        
+        training_result = accuracy_optimizer.train_ensemble_model(symbol)
+        if "error" in training_result:
+            raise HTTPException(status_code=500, detail=training_result["error"])
+        
+        return {
+            "symbol": symbol,
+            "training_result": training_result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Model eğitimi hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/accuracy/predict/{symbol}")
+async def get_accuracy_prediction(symbol: str):
+    """Hisse için doğruluk tabanlı sinyal tahmini"""
+    try:
+        if accuracy_optimizer is None:
+            raise HTTPException(status_code=503, detail="Accuracy optimizer hazır değil")
+        
+        prediction = accuracy_optimizer.predict_signal(symbol)
+        if "error" in prediction:
+            raise HTTPException(status_code=500, detail=prediction["error"])
+        
+        return {
+            "symbol": symbol,
+            "prediction": prediction,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Sinyal tahmini hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/accuracy/report")
+async def get_accuracy_report():
+    """Genel doğruluk raporu"""
+    try:
+        if accuracy_optimizer is None:
+            raise HTTPException(status_code=503, detail="Accuracy optimizer hazır değil")
+        
+        report = accuracy_optimizer.get_accuracy_report()
+        if "error" in report:
+            raise HTTPException(status_code=500, detail=report["error"])
+        
+        return {
+            "report": report,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Doğruluk raporu hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/accuracy/optimize")
+async def optimize_ensemble_weights():
+    """Ensemble ağırlıklarını optimize et"""
+    try:
+        if accuracy_optimizer is None:
+            raise HTTPException(status_code=503, detail="Accuracy optimizer hazır değil")
+        
+        optimization_result = accuracy_optimizer.optimize_ensemble_weights()
+        if "error" in optimization_result:
+            raise HTTPException(status_code=500, detail=optimization_result["error"])
+        
+        return {
+            "optimization_result": optimization_result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ensemble optimizasyon hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/accuracy/features/{symbol}")
+async def get_feature_importance(symbol: str):
+    """Hisse için özellik önem sıralaması"""
+    try:
+        if accuracy_optimizer is None:
+            raise HTTPException(status_code=503, detail="Accuracy optimizer hazır değil")
+        
+        if symbol not in accuracy_optimizer.feature_importance:
+            raise HTTPException(status_code=404, detail=f"{symbol} için model bulunamadı")
+        
+        feature_importance = accuracy_optimizer.feature_importance[symbol]
+        
+        # Önem sırasına göre sırala
+        sorted_features = sorted(
+            feature_importance.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        return {
+            "symbol": symbol,
+            "feature_importance": dict(sorted_features),
+            "top_features": sorted_features[:5],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Özellik önem hatası: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Error handlers
