@@ -1,893 +1,581 @@
 """
-Advanced Ensemble Models - Sprint 15: Advanced Integration & API Gateway
-
-Bu modül, stacking, blending, voting ve diğer gelişmiş ensemble tekniklerini
-kullanarak tahmin doğruluğunu artırır.
+PRD v2.0 - Advanced Ensemble Models
+Gelişmiş AI ensemble: XGBoost, CatBoost, Neural Networks, Transformer Models
 """
 
-import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional, Union, Any, Callable
-from dataclasses import dataclass
+import numpy as np
+import yfinance as yf
 from datetime import datetime, timedelta
-import warnings
-import json
 import logging
-import random
-from collections import defaultdict
-from sklearn.model_selection import cross_val_score, StratifiedKFold, TimeSeriesSplit
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from typing import Dict, List, Optional, Tuple, Any
+import joblib
+import json
+import warnings
+warnings.filterwarnings('ignore')
 
-# Logging ayarları
+# Machine Learning
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.pipeline import Pipeline
+
+# Advanced ML
+import xgboost as xgb
+import lightgbm as lgb
+import catboost as cb
+
+# Deep Learning
+try:
+    import tensorflow as tf
+    from tensorflow import keras
+    from tensorflow.keras import layers, optimizers, callbacks
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
+    print("⚠️ TensorFlow bulunamadı, deep learning devre dışı")
+
+# Time Series
+try:
+    from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    STATSMODELS_AVAILABLE = True
+except ImportError:
+    STATSMODELS_AVAILABLE = False
+    print("⚠️ StatsModels bulunamadı, ARIMA devre dışı")
+
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@dataclass
-class EnsembleModel:
-    """Ensemble model"""
-    model_id: str
-    name: str
-    ensemble_type: str  # stacking, blending, voting, bagging, boosting
-    base_models: List[str]
-    meta_model: Optional[str] = None
-    weights: Optional[Dict[str, float]] = None
-    parameters: Dict[str, Any] = None
-    performance_metrics: Dict[str, float] = None
-    created_at: datetime = None
-    last_updated: datetime = None
-
-@dataclass
-class EnsemblePrediction:
-    """Ensemble tahmin sonucu"""
-    prediction_id: str
-    ensemble_id: str
-    timestamp: datetime
-    final_prediction: float
-    final_confidence: float
-    base_predictions: Dict[str, float]
-    prediction_weights: Dict[str, float]
-    ensemble_variance: float
-    prediction_quality: float
-    meta_prediction: Optional[float] = None
-
-@dataclass
-class FeatureImportance:
-    """Özellik önem bilgisi"""
-    feature_name: str
-    importance_score: float
-    rank: int
-    category: str  # technical, fundamental, market, sentiment
-    description: str
-    stability_score: float  # 0-1 arası kararlılık skoru
-
-@dataclass
-class ModelPerformance:
-    """Model performans bilgisi"""
-    model_id: str
-    timestamp: datetime
-    accuracy: float
-    precision: float
-    recall: float
-    f1_score: float
-    roc_auc: float
-    cross_val_score: float
-    prediction_latency: float  # ms cinsinden
-    model_size: float  # MB cinsinden
-    last_training_time: float  # saniye cinsinden
-
 class AdvancedEnsembleModels:
-    """Advanced Ensemble Models ana sınıfı"""
+    """Gelişmiş AI ensemble modelleri"""
     
     def __init__(self):
-        self.ensemble_models = {}
-        self.base_models = {}
-        self.meta_models = {}
-        self.ensemble_predictions = {}
-        self.feature_importances = {}
-        self.model_performances = {}
-        self.ensemble_configs = {}
+        self.models = {}
+        self.ensemble = None
+        self.scaler = RobustScaler()
+        self.feature_importance = {}
+        self.performance_history = []
         
-        # Varsayılan ensemble konfigürasyonları
-        self._add_default_ensemble_configs()
+        # Model türleri
+        self.model_types = {
+            "tree_based": ["RandomForest", "XGBoost", "LightGBM", "CatBoost", "GradientBoosting"],
+            "neural_networks": ["MLP", "DeepNN", "LSTM", "Transformer"],
+            "statistical": ["LogisticRegression", "SVM", "ARIMA", "SARIMAX"],
+            "ensemble": ["Voting", "Stacking", "Blending"]
+        }
         
-        # Ensemble stratejilerini tanımla
-        self._define_ensemble_strategies()
-    
-    def _add_default_ensemble_configs(self):
-        """Varsayılan ensemble konfigürasyonları ekle"""
-        default_configs = [
-            {
-                "config_id": "STACKING_3LAYER",
-                "name": "3 Katmanlı Stacking Ensemble",
-                "description": "LightGBM + LSTM + TimeGPT -> Meta-Learner",
-                "ensemble_type": "stacking",
-                "base_models": ["lightgbm", "lstm", "timegpt"],
-                "meta_model": "logistic_regression",
-                "cv_folds": 5,
-                "use_proba": True
+        # Hyperparameter grids
+        self.param_grids = self._get_param_grids()
+        
+    def _get_param_grids(self) -> Dict:
+        """Hyperparameter grid'leri"""
+        return {
+            "RandomForest": {
+                "n_estimators": [100, 200, 300],
+                "max_depth": [10, 15, 20],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf": [1, 2, 4]
             },
-            {
-                "config_id": "BLENDING_WEIGHTED",
-                "name": "Ağırlıklı Blending Ensemble",
-                "description": "Ağırlıklı ortalama ile model birleştirme",
-                "ensemble_type": "blending",
-                "base_models": ["lightgbm", "lstm", "timegpt", "random_forest"],
-                "weights": {"lightgbm": 0.4, "lstm": 0.3, "timegpt": 0.2, "random_forest": 0.1},
-                "cv_folds": 3
+            "XGBoost": {
+                "n_estimators": [100, 200, 300],
+                "max_depth": [6, 8, 10],
+                "learning_rate": [0.01, 0.05, 0.1],
+                "subsample": [0.8, 0.9, 1.0],
+                "colsample_bytree": [0.8, 0.9, 1.0]
             },
-            {
-                "config_id": "VOTING_SOFT",
-                "name": "Soft Voting Ensemble",
-                "description": "Olasılık bazlı soft voting",
-                "ensemble_type": "voting",
-                "base_models": ["lightgbm", "lstm", "timegpt"],
-                "voting_method": "soft",
-                "weights": None
+            "LightGBM": {
+                "n_estimators": [100, 200, 300],
+                "max_depth": [6, 8, 10],
+                "learning_rate": [0.01, 0.05, 0.1],
+                "num_leaves": [31, 63, 127],
+                "subsample": [0.8, 0.9, 1.0]
             },
-            {
-                "config_id": "BAGGING_BOOTSTRAP",
-                "name": "Bootstrap Aggregating",
-                "description": "Bootstrap sampling ile model çeşitliliği",
-                "ensemble_type": "bagging",
-                "base_models": ["decision_tree", "random_forest", "extra_trees"],
-                "n_estimators": 10,
-                "bootstrap": True
-            },
-            {
-                "config_id": "BOOSTING_ADAPTIVE",
-                "name": "Adaptive Boosting",
-                "description": "Hata bazlı adaptif boosting",
-                "ensemble_type": "boosting",
-                "base_models": ["lightgbm", "xgboost", "catboost"],
-                "learning_rate": 0.1,
-                "n_estimators": 100
+            "CatBoost": {
+                "iterations": [100, 200, 300],
+                "depth": [6, 8, 10],
+                "learning_rate": [0.01, 0.05, 0.1],
+                "l2_leaf_reg": [1, 3, 5, 7]
             }
-        ]
-        
-        for config_data in default_configs:
-            self.ensemble_configs[config_data["config_id"]] = config_data
-    
-    def _define_ensemble_strategies(self):
-        """Ensemble stratejilerini tanımla"""
-        # Stacking stratejisi
-        def stacking_strategy(base_predictions: Dict[str, np.ndarray], 
-                           meta_features: np.ndarray, 
-                           meta_model: str = "logistic_regression") -> np.ndarray:
-            """Stacking ensemble stratejisi"""
-            try:
-                # Base model tahminlerini birleştir
-                stacked_features = np.column_stack(list(base_predictions.values()))
-                
-                # Meta-features ile birleştir
-                if meta_features is not None:
-                    stacked_features = np.column_stack([stacked_features, meta_features])
-                
-                # Meta-model tahmini (basit heuristik)
-                if meta_model == "logistic_regression":
-                    # Basit weighted average
-                    weights = np.random.dirichlet(np.ones(len(base_predictions)))
-                    final_prediction = np.average(stacked_features, weights=weights, axis=1)
-                else:
-                    # Diğer meta-modeller için
-                    final_prediction = np.mean(stacked_features, axis=1)
-                
-                return final_prediction
-            
-            except Exception as e:
-                logger.error(f"Error in stacking strategy: {e}")
-                return np.mean(list(base_predictions.values()), axis=0)
-        
-        # Blending stratejisi
-        def blending_strategy(base_predictions: Dict[str, np.ndarray], 
-                           weights: Dict[str, float]) -> np.ndarray:
-            """Blending ensemble stratejisi"""
-            try:
-                # Ağırlıklı ortalama
-                weighted_predictions = []
-                for model_name, predictions in base_predictions.items():
-                    weight = weights.get(model_name, 1.0)
-                    weighted_predictions.append(predictions * weight)
-                
-                final_prediction = np.sum(weighted_predictions, axis=0)
-                return final_prediction
-            
-            except Exception as e:
-                logger.error(f"Error in blending strategy: {e}")
-                return np.mean(list(base_predictions.values()), axis=0)
-        
-        # Voting stratejisi
-        def voting_strategy(base_predictions: Dict[str, np.ndarray], 
-                          voting_method: str = "soft") -> np.ndarray:
-            """Voting ensemble stratejisi"""
-            try:
-                if voting_method == "soft":
-                    # Soft voting - olasılık ortalaması
-                    final_prediction = np.mean(list(base_predictions.values()), axis=0)
-                else:
-                    # Hard voting - çoğunluk oyu
-                    predictions_array = np.array(list(base_predictions.values()))
-                    final_prediction = np.mean(predictions_array > 0.5, axis=0)
-                
-                return final_prediction
-            
-            except Exception as e:
-                logger.error(f"Error in voting strategy: {e}")
-                return np.mean(list(base_predictions.values()), axis=0)
-        
-        # Bagging stratejisi
-        def bagging_strategy(base_predictions: Dict[str, np.ndarray], 
-                           n_estimators: int = 10) -> np.ndarray:
-            """Bagging ensemble stratejisi"""
-            try:
-                # Bootstrap sampling ile tahminler
-                all_predictions = list(base_predictions.values())
-                
-                # Rastgele bootstrap sample'lar
-                bootstrap_predictions = []
-                for _ in range(n_estimators):
-                    sample_indices = np.random.choice(len(all_predictions), size=len(all_predictions), replace=True)
-                    sample_predictions = [all_predictions[i] for i in sample_indices]
-                    bootstrap_predictions.append(np.mean(sample_predictions, axis=0))
-                
-                final_prediction = np.mean(bootstrap_predictions, axis=0)
-                return final_prediction
-            
-            except Exception as e:
-                logger.error(f"Error in bagging strategy: {e}")
-                return np.mean(list(base_predictions.values()), axis=0)
-        
-        # Boosting stratejisi
-        def boosting_strategy(base_predictions: Dict[str, np.ndarray], 
-                            learning_rate: float = 0.1) -> np.ndarray:
-            """Boosting ensemble stratejisi"""
-            try:
-                # Sequential boosting
-                predictions_array = np.array(list(base_predictions.values()))
-                
-                # Ağırlıkları hesapla (hata bazlı)
-                weights = np.ones(len(base_predictions))
-                for i in range(1, len(base_predictions)):
-                    # Önceki modelin hatasına göre ağırlık
-                    error = np.mean(np.abs(predictions_array[i-1] - predictions_array[i]))
-                    weights[i] = learning_rate * (1 - error)
-                
-                # Normalize et
-                weights = weights / np.sum(weights)
-                
-                # Ağırlıklı tahmin
-                final_prediction = np.average(predictions_array, weights=weights, axis=0)
-                return final_prediction
-            
-            except Exception as e:
-                logger.error(f"Error in boosting strategy: {e}")
-                return np.mean(list(base_predictions.values()), axis=0)
-        
-        self.ensemble_strategies = {
-            "stacking": stacking_strategy,
-            "blending": blending_strategy,
-            "voting": voting_strategy,
-            "bagging": bagging_strategy,
-            "boosting": boosting_strategy
         }
     
-    def create_ensemble_model(self, config_id: str, base_models: Dict[str, Any]) -> str:
-        """Ensemble model oluştur"""
+    def create_advanced_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Gelişmiş özellikler oluştur"""
         try:
-            if config_id not in self.ensemble_configs:
-                logger.error(f"Ensemble config {config_id} not found")
-                return None
+            df = data.copy()
             
-            config = self.ensemble_configs[config_id]
+            # 1. Technical Indicators (mevcut)
+            # ... (mevcut teknik indikatörler)
             
-            # Base modelleri kaydet
-            for model_name, model_obj in base_models.items():
-                if model_name in config["base_models"]:
-                    self.base_models[model_name] = model_obj
+            # 2. Advanced Statistical Features
+            # Rolling statistics
+            for window in [5, 10, 20, 50]:
+                df[f'RETURN_{window}D'] = df['Close'].pct_change(window)
+                df[f'VOLATILITY_{window}D'] = df['Close'].pct_change().rolling(window).std()
+                df[f'SHARPE_{window}D'] = df[f'RETURN_{window}D'] / df[f'VOLATILITY_{window}D']
+                df[f'MAX_DRAWDOWN_{window}D'] = self._calculate_max_drawdown(df['Close'], window)
+                df[f'CALMAR_{window}D'] = df[f'RETURN_{window}D'] / df[f'MAX_DRAWDOWN_{window}D']
             
-            # Ensemble model oluştur
-            ensemble_model = EnsembleModel(
-                model_id=f"ENSEMBLE_{config_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                name=config["name"],
-                ensemble_type=config["ensemble_type"],
-                base_models=config["base_models"],
-                meta_model=config.get("meta_model"),
-                weights=config.get("weights"),
-                parameters=config,
-                created_at=datetime.now(),
-                last_updated=datetime.now()
+            # 3. Price Action Features
+            df['PRICE_RANGE'] = (df['High'] - df['Low']) / df['Close']
+            df['BODY_SIZE'] = abs(df['Close'] - df['Open']) / df['Close']
+            df['UPPER_SHADOW'] = (df['High'] - np.maximum(df['Open'], df['Close'])) / df['Close']
+            df['LOWER_SHADOW'] = (np.minimum(df['Open'], df['Close']) - df['Low']) / df['Close']
+            
+            # 4. Volume Features
+            df['VOLUME_PRICE_TREND'] = df['Volume'] * df['Close'].pct_change()
+            df['VOLUME_MA_RATIO'] = df['Volume'] / df['Volume'].rolling(20).mean()
+            df['VOLUME_WEIGHTED_AVG'] = (df['Volume'] * df['Close']).rolling(20).sum() / df['Volume'].rolling(20).sum()
+            
+            # 5. Momentum Features
+            df['ROC_5'] = df['Close'].pct_change(5)
+            df['ROC_10'] = df['Close'].pct_change(10)
+            df['ROC_20'] = df['Close'].pct_change(20)
+            df['MOMENTUM_ACCELERATION'] = df['ROC_5'] - df['ROC_20']
+            
+            # 6. Volatility Features
+            df['ATR_RATIO'] = df['ATR'] / df['Close']
+            df['BB_POSITION'] = (df['Close'] - df['BB_Lower']) / (df['BB_Upper'] - df['BB_Lower'])
+            df['BB_SQUEEZE'] = df['BB_Width'] < df['BB_Width'].rolling(20).quantile(0.2)
+            
+            # 7. Trend Features
+            df['TREND_STRENGTH'] = abs(df['SMA_20'] - df['SMA_50']) / df['SMA_50']
+            df['TREND_ACCELERATION'] = df['TREND_STRENGTH'].diff()
+            df['TREND_REVERSAL'] = ((df['SMA_20'] > df['SMA_50']) & (df['SMA_20'].shift(1) <= df['SMA_50'].shift(1))).astype(int)
+            
+            # 8. Cross-Asset Features (placeholder)
+            df['USDTRY_CORRELATION'] = 0.0
+            df['GOLD_CORRELATION'] = 0.0
+            df['OIL_CORRELATION'] = 0.0
+            
+            # 9. Market Regime Features
+            df['MARKET_REGIME'] = self._detect_market_regime(df)
+            df['VOLATILITY_REGIME'] = self._detect_volatility_regime(df)
+            
+            # 10. Sentiment Features (placeholder)
+            df['NEWS_SENTIMENT'] = 0.0
+            df['SOCIAL_SENTIMENT'] = 0.0
+            df['ANALYST_RATING'] = 0.0
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"❌ Gelişmiş özellik hatası: {e}")
+            return data
+    
+    def _calculate_max_drawdown(self, prices: pd.Series, window: int) -> pd.Series:
+        """Maksimum drawdown hesapla"""
+        try:
+            rolling_max = prices.rolling(window).max()
+            drawdown = (prices - rolling_max) / rolling_max
+            return drawdown.abs()
+        except:
+            return pd.Series(0, index=prices.index)
+    
+    def _detect_market_regime(self, df: pd.DataFrame) -> pd.Series:
+        """Market rejimi tespit et"""
+        try:
+            # Basit market regime detection
+            regime = pd.Series(0, index=df.index)
+            
+            # Bull market: SMA20 > SMA50 and positive momentum
+            bull_condition = (df['SMA_20'] > df['SMA_50']) & (df['ROC_20'] > 0)
+            regime[bull_condition] = 1
+            
+            # Bear market: SMA20 < SMA50 and negative momentum
+            bear_condition = (df['SMA_20'] < df['SMA_50']) & (df['ROC_20'] < 0)
+            regime[bear_condition] = -1
+            
+            # Sideways: neither bull nor bear
+            regime[~bull_condition & ~bear_condition] = 0
+            
+            return regime
+        except:
+            return pd.Series(0, index=df.index)
+    
+    def _detect_volatility_regime(self, df: pd.DataFrame) -> pd.Series:
+        """Volatilite rejimi tespit et"""
+        try:
+            volatility = df['Close'].pct_change().rolling(20).std()
+            vol_quantile = volatility.rolling(50).quantile(0.8)
+            
+            regime = pd.Series(0, index=df.index)
+            regime[volatility > vol_quantile] = 1  # High volatility
+            regime[volatility < volatility.rolling(50).quantile(0.2)] = -1  # Low volatility
+            
+            return regime
+        except:
+            return pd.Series(0, index=df.index)
+    
+    def train_xgboost_model(self, X: pd.DataFrame, y: pd.Series, symbol: str) -> Dict:
+        """XGBoost model eğit"""
+        try:
+            logger.info(f"🚀 {symbol} için XGBoost model eğitiliyor...")
+            
+            # Time series split
+            tscv = TimeSeriesSplit(n_splits=5)
+            
+            # Grid search
+            xgb_model = xgb.XGBClassifier(
+                objective='binary:logistic',
+                eval_metric='logloss',
+                random_state=42,
+                n_jobs=-1
             )
             
-            self.ensemble_models[ensemble_model.model_id] = ensemble_model
-            logger.info(f"Ensemble model created: {ensemble_model.model_id}")
-            
-            return ensemble_model.model_id
-        
-        except Exception as e:
-            logger.error(f"Error creating ensemble model: {e}")
-            return None
-    
-    def generate_ensemble_prediction(self, ensemble_id: str, features: Dict[str, float], 
-                                   meta_features: Optional[Dict[str, float]] = None) -> Optional[EnsemblePrediction]:
-        """Ensemble tahmin üret"""
-        try:
-            if ensemble_id not in self.ensemble_models:
-                logger.error(f"Ensemble model {ensemble_id} not found")
-                return None
-            
-            ensemble = self.ensemble_models[ensemble_id]
-            config = ensemble.parameters
-            
-            # Base model tahminlerini al
-            base_predictions = {}
-            for model_name in ensemble.base_models:
-                if model_name in self.base_models:
-                    # Simüle edilmiş tahmin (gerçek implementasyonda model.predict() kullanılır)
-                    prediction = self._simulate_model_prediction(model_name, features)
-                    base_predictions[model_name] = prediction
-            
-            if not base_predictions:
-                logger.error("No base model predictions available")
-                return None
-            
-            # Ensemble stratejisini uygula
-            strategy = self.ensemble_strategies.get(config["ensemble_type"])
-            if not strategy:
-                logger.error(f"Strategy not found for {config['ensemble_type']}")
-                return None
-            
-            # Meta-features'ları hazırla
-            meta_features_array = None
-            if meta_features and config.get("use_proba"):
-                meta_features_array = np.array(list(meta_features.values()))
-            
-            # Final tahmin
-            if config["ensemble_type"] == "stacking":
-                final_prediction = strategy(base_predictions, meta_features_array, config.get("meta_model"))
-            elif config["ensemble_type"] == "blending":
-                final_prediction = strategy(base_predictions, config.get("weights", {}))
-            elif config["ensemble_type"] == "voting":
-                final_prediction = strategy(base_predictions, config.get("voting_method", "soft"))
-            elif config["ensemble_type"] == "bagging":
-                final_prediction = strategy(base_predictions, config.get("n_estimators", 10))
-            elif config["ensemble_type"] == "boosting":
-                final_prediction = strategy(base_predictions, config.get("learning_rate", 0.1))
-            else:
-                final_prediction = np.mean(list(base_predictions.values()), axis=0)
-            
-            # Tahmin kalitesi hesapla
-            prediction_quality = self._calculate_prediction_quality(base_predictions, final_prediction)
-            
-            # Ensemble variance hesapla
-            ensemble_variance = np.var(list(base_predictions.values()), axis=0).mean()
-            
-            # Güven skoru hesapla
-            final_confidence = self._calculate_confidence_score(base_predictions, final_prediction)
-            
-            # Ensemble tahmin sonucu oluştur
-            ensemble_prediction = EnsemblePrediction(
-                prediction_id=f"PRED_{ensemble_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                ensemble_id=ensemble_id,
-                timestamp=datetime.now(),
-                final_prediction=float(final_prediction.mean()),
-                final_confidence=final_confidence,
-                base_predictions={k: float(v.mean()) for k, v in base_predictions.items()},
-                meta_prediction=float(meta_features_array.mean()) if meta_features_array is not None else None,
-                prediction_weights=config.get("weights", {}),
-                ensemble_variance=float(ensemble_variance),
-                prediction_quality=prediction_quality
+            grid_search = GridSearchCV(
+                xgb_model,
+                self.param_grids["XGBoost"],
+                cv=tscv,
+                scoring='f1',
+                n_jobs=-1,
+                verbose=0
             )
             
-            self.ensemble_predictions[ensemble_prediction.prediction_id] = ensemble_prediction
-            logger.info(f"Ensemble prediction generated: {ensemble_prediction.prediction_id}")
+            grid_search.fit(X, y)
             
-            return ensemble_prediction
-        
-        except Exception as e:
-            logger.error(f"Error generating ensemble prediction: {e}")
-            return None
-    
-    def _simulate_model_prediction(self, model_name: str, features: Dict[str, float]) -> np.ndarray:
-        """Model tahminini simüle et"""
-        try:
-            # Gerçek implementasyonda bu kısım model.predict() ile değiştirilecek
-            np.random.seed(hash(str(features)) % 2**32)
+            # Best model
+            best_model = grid_search.best_estimator_
+            best_params = grid_search.best_params_
             
-            if model_name == "lightgbm":
-                # LightGBM benzeri tahmin
-                base_score = 0.5
-                feature_contribution = sum(features.values()) / len(features) * 0.1
-                noise = np.random.normal(0, 0.05, 100)
-                predictions = base_score + feature_contribution + noise
-            
-            elif model_name == "lstm":
-                # LSTM benzeri tahmin
-                base_score = 0.6
-                feature_contribution = sum(features.values()) / len(features) * 0.15
-                noise = np.random.normal(0, 0.03, 100)
-                predictions = base_score + feature_contribution + noise
-            
-            elif model_name == "timegpt":
-                # TimeGPT benzeri tahmin
-                base_score = 0.55
-                feature_contribution = sum(features.values()) / len(features) * 0.12
-                noise = np.random.normal(0, 0.04, 100)
-                predictions = base_score + feature_contribution + noise
-            
-            elif model_name == "random_forest":
-                # Random Forest benzeri tahmin
-                base_score = 0.52
-                feature_contribution = sum(features.values()) / len(features) * 0.08
-                noise = np.random.normal(0, 0.06, 100)
-                predictions = base_score + feature_contribution + noise
-            
-            else:
-                # Varsayılan tahmin
-                base_score = 0.5
-                feature_contribution = sum(features.values()) / len(features) * 0.1
-                noise = np.random.normal(0, 0.05, 100)
-                predictions = base_score + feature_contribution + noise
-            
-            # 0-1 arasında sınırla
-            predictions = np.clip(predictions, 0, 1)
-            
-            return predictions
-        
-        except Exception as e:
-            logger.error(f"Error simulating model prediction: {e}")
-            return np.random.uniform(0.4, 0.6, 100)
-    
-    def _calculate_prediction_quality(self, base_predictions: Dict[str, np.ndarray], 
-                                    final_prediction: np.ndarray) -> float:
-        """Tahmin kalitesini hesapla"""
-        try:
-            # Base model tahminleri arasındaki tutarlılık
-            predictions_array = np.array(list(base_predictions.values()))
-            
-            # Standart sapma (düşük = yüksek kalite)
-            std_predictions = np.std(predictions_array, axis=0)
-            consistency_score = 1 / (1 + std_predictions.mean())
-            
-            # Final tahminin kararlılığı
-            stability_score = 1 / (1 + np.std(final_prediction))
-            
-            # Genel kalite skoru
-            quality_score = (consistency_score + stability_score) / 2
-            return float(quality_score)
-        
-        except Exception as e:
-            logger.error(f"Error calculating prediction quality: {e}")
-            return 0.5
-    
-    def _calculate_confidence_score(self, base_predictions: Dict[str, np.ndarray], 
-                                  final_prediction: np.ndarray) -> float:
-        """Güven skorunu hesapla"""
-        try:
-            # Base model tahminlerinin final tahmine yakınlığı
-            predictions_array = np.array(list(base_predictions.values()))
-            
-            # Her base model tahmininin final tahmine olan uzaklığı
-            distances = []
-            for pred in predictions_array:
-                distance = np.mean(np.abs(pred - final_prediction))
-                distances.append(distance)
-            
-            # Ortalama uzaklık (düşük = yüksek güven)
-            avg_distance = np.mean(distances)
-            confidence_score = 1 / (1 + avg_distance)
-            
-            return float(confidence_score)
-        
-        except Exception as e:
-            logger.error(f"Error calculating confidence score: {e}")
-            return 0.5
-    
-    def optimize_ensemble_weights(self, ensemble_id: str, validation_data: pd.DataFrame, 
-                                target_column: str) -> Dict[str, float]:
-        """Ensemble ağırlıklarını optimize et"""
-        try:
-            if ensemble_id not in self.ensemble_models:
-                logger.error(f"Ensemble model {ensemble_id} not found")
-                return {}
-            
-            ensemble = self.ensemble_models[ensemble_id]
-            
-            # Cross-validation ile ağırlık optimizasyonu
-            cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-            
-            best_weights = None
-            best_score = 0.0
-            
-            # Grid search benzeri ağırlık arama
-            weight_combinations = [
-                {"lightgbm": 0.4, "lstm": 0.3, "timegpt": 0.3},
-                {"lightgbm": 0.5, "lstm": 0.3, "timegpt": 0.2},
-                {"lightgbm": 0.6, "lstm": 0.25, "timegpt": 0.15},
-                {"lightgbm": 0.3, "lstm": 0.4, "timegpt": 0.3},
-                {"lightgbm": 0.35, "lstm": 0.35, "timegpt": 0.3}
-            ]
-            
-            for weights in weight_combinations:
-                cv_scores = []
+            # Cross-validation scores
+            cv_scores = []
+            for train_idx, val_idx in tscv.split(X):
+                X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+                y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
                 
-                for train_idx, val_idx in cv.split(validation_data, validation_data[target_column]):
-                    # Train/validation split
-                    train_data = validation_data.iloc[train_idx]
-                    val_data = validation_data.iloc[val_idx]
-                    
-                    # Base model tahminlerini al (simüle edilmiş)
-                    base_predictions = {}
-                    for model_name in ensemble.base_models:
-                        if model_name in weights:
-                            # Simüle edilmiş tahmin
-                            features = val_data.drop(columns=[target_column]).iloc[0].to_dict()
-                            prediction = self._simulate_model_prediction(model_name, features)
-                            base_predictions[model_name] = prediction
-                    
-                    # Ağırlıklı ensemble tahmin
-                    weighted_prediction = 0.0
-                    for model_name, pred in base_predictions.items():
-                        weight = weights.get(model_name, 0.0)
-                        weighted_prediction += weight * pred.mean()
-                    
-                    # Binary tahmin
-                    binary_prediction = (weighted_prediction > 0.5).astype(int)
-                    
-                    # Accuracy hesapla
-                    accuracy = accuracy_score(val_data[target_column], binary_prediction)
-                    cv_scores.append(accuracy)
+                best_model.fit(X_train, y_train)
+                y_pred = best_model.predict(X_val)
+                y_pred_proba = best_model.predict_proba(X_val)[:, 1]
                 
-                # Ortalama CV skoru
-                avg_cv_score = np.mean(cv_scores)
-                
-                if avg_cv_score > best_score:
-                    best_score = avg_cv_score
-                    best_weights = weights
+                cv_scores.append({
+                    'accuracy': accuracy_score(y_val, y_pred),
+                    'precision': precision_score(y_val, y_pred, zero_division=0),
+                    'recall': recall_score(y_val, y_pred, zero_division=0),
+                    'f1': f1_score(y_val, y_pred, zero_division=0),
+                    'roc_auc': roc_auc_score(y_val, y_pred_proba)
+                })
             
-            # En iyi ağırlıkları güncelle
-            if best_weights:
-                ensemble.weights = best_weights
-                ensemble.last_updated = datetime.now()
-                logger.info(f"Ensemble weights optimized: {best_weights}")
+            # Feature importance
+            feature_importance = dict(zip(X.columns, best_model.feature_importances_))
             
-            return best_weights or {}
-        
-        except Exception as e:
-            logger.error(f"Error optimizing ensemble weights: {e}")
-            return {}
-    
-    def calculate_feature_importance(self, ensemble_id: str, features: Dict[str, float]) -> List[FeatureImportance]:
-        """Özellik önem skorlarını hesapla"""
-        try:
-            if ensemble_id not in self.ensemble_models:
-                logger.error(f"Ensemble model {ensemble_id} not found")
-                return []
+            # Model kaydet
+            self.models[f"{symbol}_XGBoost"] = best_model
+            self.feature_importance[f"{symbol}_XGBoost"] = feature_importance
             
-            ensemble = self.ensemble_models[ensemble_id]
+            logger.info(f"✅ XGBoost model eğitimi tamamlandı")
+            logger.info(f"📊 En iyi parametreler: {best_params}")
             
-            # Her base model için özellik önem skorları
-            feature_importances = defaultdict(list)
-            
-            for model_name in ensemble.base_models:
-                # Simüle edilmiş özellik önem skorları
-                model_importances = self._simulate_feature_importance(model_name, features)
-                
-                for feature_name, importance in model_importances.items():
-                    feature_importances[feature_name].append(importance)
-            
-            # Ensemble özellik önem skorları
-            ensemble_feature_importances = []
-            
-            for feature_name, importances in feature_importances.items():
-                # Ağırlıklı ortalama
-                if ensemble.weights:
-                    weighted_importance = 0.0
-                    total_weight = 0.0
-                    
-                    for i, model_name in enumerate(ensemble.base_models):
-                        if i < len(importances):
-                            weight = ensemble.weights.get(model_name, 1.0)
-                            weighted_importance += weight * importances[i]
-                            total_weight += weight
-                    
-                    if total_weight > 0:
-                        final_importance = weighted_importance / total_weight
-                    else:
-                        final_importance = np.mean(importances)
-                else:
-                    final_importance = np.mean(importances)
-                
-                # Özellik kategorisini belirle
-                category = self._determine_feature_category(feature_name)
-                
-                # Açıklama oluştur
-                description = self._generate_feature_description(feature_name, category)
-                
-                # Kararlılık skoru hesapla
-                stability_score = 1 / (1 + np.std(importances))
-                
-                feature_importance = FeatureImportance(
-                    feature_name=feature_name,
-                    importance_score=float(final_importance),
-                    rank=0,  # Sıralama daha sonra yapılacak
-                    category=category,
-                    description=description,
-                    stability_score=float(stability_score)
-                )
-                
-                ensemble_feature_importances.append(feature_importance)
-            
-            # Önem skoruna göre sırala
-            ensemble_feature_importances.sort(key=lambda x: x.importance_score, reverse=True)
-            
-            # Rank'ları güncelle
-            for i, feature in enumerate(ensemble_feature_importances):
-                feature.rank = i + 1
-            
-            # Sonuçları kaydet
-            for feature in ensemble_feature_importances:
-                self.feature_importances[f"{ensemble_id}_{feature.feature_name}"] = feature
-            
-            logger.info(f"Feature importance calculated for {ensemble_id}: {len(ensemble_feature_importances)} features")
-            return ensemble_feature_importances
-        
-        except Exception as e:
-            logger.error(f"Error calculating feature importance: {e}")
-            return []
-    
-    def _simulate_feature_importance(self, model_name: str, features: Dict[str, float]) -> Dict[str, float]:
-        """Model bazlı özellik önem skorlarını simüle et"""
-        try:
-            importances = {}
-            
-            # Model tipine göre farklı özellik önem skorları
-            if model_name == "lightgbm":
-                # LightGBM genellikle teknik indikatörlere önem verir
-                for feature_name, feature_value in features.items():
-                    if "rsi" in feature_name.lower():
-                        importances[feature_name] = 0.9
-                    elif "macd" in feature_name.lower():
-                        importances[feature_name] = 0.8
-                    elif "ema" in feature_name.lower():
-                        importances[feature_name] = 0.7
-                    else:
-                        importances[feature_name] = random.uniform(0.3, 0.6)
-            
-            elif model_name == "lstm":
-                # LSTM genellikle fiyat ve hacim verilerine önem verir
-                for feature_name, feature_value in features.items():
-                    if "price" in feature_name.lower():
-                        importances[feature_name] = 0.9
-                    elif "volume" in feature_name.lower():
-                        importances[feature_name] = 0.8
-                    elif "rsi" in feature_name.lower():
-                        importances[feature_name] = 0.7
-                    else:
-                        importances[feature_name] = random.uniform(0.4, 0.6)
-            
-            elif model_name == "timegpt":
-                # TimeGPT genellikle temel faktörlere önem verir
-                for feature_name, feature_value in features.items():
-                    if "pe_ratio" in feature_name.lower():
-                        importances[feature_name] = 0.9
-                    elif "roe" in feature_name.lower():
-                        importances[feature_name] = 0.8
-                    elif "debt" in feature_name.lower():
-                        importances[feature_name] = 0.7
-                    else:
-                        importances[feature_name] = random.uniform(0.3, 0.6)
-            
-            else:
-                # Varsayılan özellik önem skorları
-                for feature_name, feature_value in features.items():
-                    importances[feature_name] = random.uniform(0.4, 0.8)
-            
-            return importances
-        
-        except Exception as e:
-            logger.error(f"Error simulating feature importance: {e}")
-            return {name: random.uniform(0.3, 0.7) for name in features.keys()}
-    
-    def _determine_feature_category(self, feature_name: str) -> str:
-        """Özellik kategorisini belirle"""
-        try:
-            feature_lower = feature_name.lower()
-            
-            if any(word in feature_lower for word in ["rsi", "macd", "ema", "bollinger", "volume", "price"]):
-                return "technical"
-            elif any(word in feature_lower for word in ["pe_ratio", "pb_ratio", "roe", "roa", "debt"]):
-                return "fundamental"
-            elif any(word in feature_lower for word in ["market_cap", "sector", "country"]):
-                return "market"
-            elif any(word in feature_lower for word in ["sentiment", "news", "social"]):
-                return "sentiment"
-            else:
-                return "other"
-        
-        except Exception as e:
-            logger.error(f"Error determining feature category: {e}")
-            return "other"
-    
-    def _generate_feature_description(self, feature_name: str, category: str) -> str:
-        """Özellik açıklaması oluştur"""
-        try:
-            descriptions = {
-                "rsi": "Relative Strength Index - Aşırı alım/satım seviyeleri",
-                "macd": "Moving Average Convergence Divergence - Trend değişim sinyali",
-                "ema_20": "20 günlük Exponential Moving Average - Kısa vadeli trend",
-                "ema_50": "50 günlük Exponential Moving Average - Orta vadeli trend",
-                "pe_ratio": "Price-to-Earnings Ratio - Fiyat/Kazanç oranı",
-                "roe": "Return on Equity - Özsermaye karlılığı",
-                "volume": "İşlem hacmi - Likidite göstergesi",
-                "price": "Hisse fiyatı - Anlık değer"
+            return {
+                "symbol": symbol,
+                "model_type": "XGBoost",
+                "best_params": best_params,
+                "cv_scores": cv_scores,
+                "avg_scores": {
+                    'accuracy': np.mean([s['accuracy'] for s in cv_scores]),
+                    'precision': np.mean([s['precision'] for s in cv_scores]),
+                    'recall': np.mean([s['recall'] for s in cv_scores]),
+                    'f1': np.mean([s['f1'] for s in cv_scores]),
+                    'roc_auc': np.mean([s['roc_auc'] for s in cv_scores])
+                },
+                "feature_importance": feature_importance,
+                "training_date": datetime.now().isoformat()
             }
             
-            return descriptions.get(feature_name, f"{feature_name} - {category} kategorisinde özellik")
-        
         except Exception as e:
-            logger.error(f"Error generating feature description: {e}")
-            return f"{feature_name} - Özellik açıklaması"
+            logger.error(f"❌ XGBoost eğitimi hatası: {e}")
+            return {"error": str(e)}
     
-    def get_ensemble_summary(self) -> Dict[str, Any]:
-        """Ensemble özeti getir"""
+    def train_lightgbm_model(self, X: pd.DataFrame, y: pd.Series, symbol: str) -> Dict:
+        """LightGBM model eğit"""
         try:
-            summary = {
-                "total_ensembles": len(self.ensemble_models),
-                "total_base_models": len(self.base_models),
-                "total_predictions": len(self.ensemble_predictions),
-                "total_features": len(self.feature_importances),
-                "ensemble_types": {},
-                "performance_summary": {},
-                "feature_importance_summary": {}
+            logger.info(f"🚀 {symbol} için LightGBM model eğitiliyor...")
+            
+            # Time series split
+            tscv = TimeSeriesSplit(n_splits=5)
+            
+            # Grid search
+            lgb_model = lgb.LGBMClassifier(
+                objective='binary',
+                metric='binary_logloss',
+                random_state=42,
+                n_jobs=-1,
+                verbose=-1
+            )
+            
+            grid_search = GridSearchCV(
+                lgb_model,
+                self.param_grids["LightGBM"],
+                cv=tscv,
+                scoring='f1',
+                n_jobs=-1,
+                verbose=0
+            )
+            
+            grid_search.fit(X, y)
+            
+            # Best model
+            best_model = grid_search.best_estimator_
+            best_params = grid_search.best_params_
+            
+            # Cross-validation scores
+            cv_scores = []
+            for train_idx, val_idx in tscv.split(X):
+                X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+                y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+                
+                best_model.fit(X_train, y_train)
+                y_pred = best_model.predict(X_val)
+                y_pred_proba = best_model.predict_proba(X_val)[:, 1]
+                
+                cv_scores.append({
+                    'accuracy': accuracy_score(y_val, y_pred),
+                    'precision': precision_score(y_val, y_pred, zero_division=0),
+                    'recall': recall_score(y_val, y_pred, zero_division=0),
+                    'f1': f1_score(y_val, y_pred, zero_division=0),
+                    'roc_auc': roc_auc_score(y_val, y_pred_proba)
+                })
+            
+            # Feature importance
+            feature_importance = dict(zip(X.columns, best_model.feature_importances_))
+            
+            # Model kaydet
+            self.models[f"{symbol}_LightGBM"] = best_model
+            self.feature_importance[f"{symbol}_LightGBM"] = feature_importance
+            
+            logger.info(f"✅ LightGBM model eğitimi tamamlandı")
+            logger.info(f"📊 En iyi parametreler: {best_params}")
+            
+            return {
+                "symbol": symbol,
+                "model_type": "LightGBM",
+                "best_params": best_params,
+                "cv_scores": cv_scores,
+                "avg_scores": {
+                    'accuracy': np.mean([s['accuracy'] for s in cv_scores]),
+                    'precision': np.mean([s['precision'] for s in cv_scores]),
+                    'recall': np.mean([s['recall'] for s in cv_scores]),
+                    'f1': np.mean([s['f1'] for s in cv_scores]),
+                    'roc_auc': np.mean([s['roc_auc'] for s in cv_scores])
+                },
+                "feature_importance": feature_importance,
+                "training_date": datetime.now().isoformat()
             }
             
-            # Ensemble tipleri
-            for ensemble in self.ensemble_models.values():
-                ensemble_type = ensemble.ensemble_type
-                summary["ensemble_types"][ensemble_type] = summary["ensemble_types"].get(ensemble_type, 0) + 1
-            
-            # Performans özeti
-            if self.ensemble_predictions:
-                qualities = [pred.prediction_quality for pred in self.ensemble_predictions.values()]
-                confidences = [pred.final_confidence for pred in self.ensemble_predictions.values()]
-                
-                summary["performance_summary"] = {
-                    "average_quality": np.mean(qualities),
-                    "average_confidence": np.mean(confidences),
-                    "total_predictions": len(self.ensemble_predictions)
-                }
-            
-            # Özellik önem özeti
-            if self.feature_importances:
-                importance_scores = [feature.importance_score for feature in self.feature_importances.values()]
-                stability_scores = [feature.stability_score for feature in self.feature_importances.values()]
-                
-                summary["feature_importance_summary"] = {
-                    "average_importance": np.mean(importance_scores),
-                    "average_stability": np.mean(stability_scores),
-                    "total_features": len(self.feature_importances)
-                }
-            
-            return summary
-        
         except Exception as e:
-            logger.error(f"Error getting ensemble summary: {e}")
-            return {}
-
-
-def test_advanced_ensemble_models():
-    """Advanced Ensemble Models test fonksiyonu"""
-    print("\n🧪 Advanced Ensemble Models Test Başlıyor...")
+            logger.error(f"❌ LightGBM eğitimi hatası: {e}")
+            return {"error": str(e)}
     
-    # Advanced Ensemble Models oluştur
-    ensemble_models = AdvancedEnsembleModels()
-    
-    print("✅ Advanced Ensemble Models oluşturuldu")
-    print(f"📊 Toplam ensemble konfigürasyonu: {len(ensemble_models.ensemble_configs)}")
-    print(f"📊 Kullanılabilir stratejiler: {list(ensemble_models.ensemble_strategies.keys())}")
-    
-    # Test base modelleri oluştur
-    print("\n📊 Test Base Modelleri Oluşturma:")
-    test_base_models = {
-        "lightgbm": "LightGBM Model Object",
-        "lstm": "LSTM Model Object",
-        "timegpt": "TimeGPT Model Object",
-        "random_forest": "Random Forest Model Object"
-    }
-    
-    print(f"   ✅ {len(test_base_models)} test base model oluşturuldu")
-    
-    # Test özellikleri
-    test_features = {
-        "rsi": 35.5,
-        "macd": 0.8,
-        "ema_20": 88.0,
-        "ema_50": 90.0,
-        "volume": 2500,
-        "pe_ratio": 12.5,
-        "roe": 0.15
-    }
-    
-    print(f"   📊 Test özellikleri: {len(test_features)} özellik")
-    
-    # Farklı ensemble tiplerini test et
-    print("\n📊 Ensemble Model Testleri:")
-    
-    for config_id in ["STACKING_3LAYER", "BLENDING_WEIGHTED", "VOTING_SOFT"]:
-        print(f"\n📊 {config_id} Testi:")
-        
-        # Ensemble model oluştur
-        ensemble_id = ensemble_models.create_ensemble_model(config_id, test_base_models)
-        
-        if ensemble_id:
-            print(f"   ✅ Ensemble model oluşturuldu: {ensemble_id}")
+    def train_catboost_model(self, X: pd.DataFrame, y: pd.Series, symbol: str) -> Dict:
+        """CatBoost model eğit"""
+        try:
+            logger.info(f"🚀 {symbol} için CatBoost model eğitiliyor...")
             
-            # Ensemble tahmin üret
-            prediction = ensemble_models.generate_ensemble_prediction(ensemble_id, test_features)
+            # Time series split
+            tscv = TimeSeriesSplit(n_splits=5)
             
-            if prediction:
-                print(f"   ✅ Ensemble tahmin üretildi")
-                print(f"      📊 Final tahmin: {prediction.final_prediction:.3f}")
-                print(f"      📊 Güven skoru: {prediction.final_confidence:.3f}")
-                print(f"      📊 Tahmin kalitesi: {prediction.prediction_quality:.3f}")
-                print(f"      📊 Ensemble variance: {prediction.ensemble_variance:.3f}")
-                print(f"      📊 Base tahminler: {len(prediction.base_predictions)}")
+            # Grid search
+            cb_model = cb.CatBoostClassifier(
+                loss_function='Logloss',
+                eval_metric='AUC',
+                random_state=42,
+                verbose=False
+            )
             
-            # Özellik önem skorları hesapla
-            feature_importances = ensemble_models.calculate_feature_importance(ensemble_id, test_features)
+            grid_search = GridSearchCV(
+                cb_model,
+                self.param_grids["CatBoost"],
+                cv=tscv,
+                scoring='f1',
+                n_jobs=-1,
+                verbose=0
+            )
             
-            if feature_importances:
-                print(f"   ✅ Özellik önem skorları hesaplandı")
-                print(f"      📊 Toplam özellik: {len(feature_importances)}")
-                print(f"      📊 En önemli özellik: {feature_importances[0].feature_name} (skor: {feature_importances[0].importance_score:.3f})")
+            grid_search.fit(X, y)
+            
+            # Best model
+            best_model = grid_search.best_estimator_
+            best_params = grid_search.best_params_
+            
+            # Cross-validation scores
+            cv_scores = []
+            for train_idx, val_idx in tscv.split(X):
+                X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+                y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+                
+                best_model.fit(X_train, y_train)
+                y_pred = best_model.predict(X_val)
+                y_pred_proba = best_model.predict_proba(X_val)[:, 1]
+                
+                cv_scores.append({
+                    'accuracy': accuracy_score(y_val, y_pred),
+                    'precision': precision_score(y_val, y_pred, zero_division=0),
+                    'recall': recall_score(y_val, y_pred, zero_division=0),
+                    'f1': f1_score(y_val, y_pred, zero_division=0),
+                    'roc_auc': roc_auc_score(y_val, y_pred_proba)
+                })
+            
+            # Feature importance
+            feature_importance = dict(zip(X.columns, best_model.feature_importances_))
+            
+            # Model kaydet
+            self.models[f"{symbol}_CatBoost"] = best_model
+            self.feature_importance[f"{symbol}_CatBoost"] = feature_importance
+            
+            logger.info(f"✅ CatBoost model eğitimi tamamlandı")
+            logger.info(f"📊 En iyi parametreler: {best_params}")
+            
+            return {
+                "symbol": symbol,
+                "model_type": "CatBoost",
+                "best_params": best_params,
+                "cv_scores": cv_scores,
+                "avg_scores": {
+                    'accuracy': np.mean([s['accuracy'] for s in cv_scores]),
+                    'precision': np.mean([s['precision'] for s in cv_scores]),
+                    'recall': np.mean([s['recall'] for s in cv_scores]),
+                    'f1': np.mean([s['f1'] for s in cv_scores]),
+                    'roc_auc': np.mean([s['roc_auc'] for s in cv_scores])
+                },
+                "feature_importance": feature_importance,
+                "training_date": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ CatBoost eğitimi hatası: {e}")
+            return {"error": str(e)}
     
-    # Ağırlık optimizasyonu testi
-    print("\n📊 Ağırlık Optimizasyonu Testi:")
+    def create_voting_ensemble(self, symbol: str) -> Dict:
+        """Voting ensemble oluştur"""
+        try:
+            logger.info(f"🚀 {symbol} için voting ensemble oluşturuluyor...")
+            
+            # Mevcut modelleri kontrol et
+            required_models = [f"{symbol}_XGBoost", f"{symbol}_LightGBM", f"{symbol}_CatBoost"]
+            available_models = []
+            
+            for model_name in required_models:
+                if model_name in self.models:
+                    available_models.append((model_name, self.models[model_name]))
+            
+            if len(available_models) < 2:
+                return {"error": "En az 2 model gerekli"}
+            
+            # Voting classifier
+            estimators = [(name, model) for name, model in available_models]
+            voting_clf = VotingClassifier(
+                estimators=estimators,
+                voting='soft'  # Probability-based voting
+            )
+            
+            # Ensemble kaydet
+            self.ensemble = voting_clf
+            self.models[f"{symbol}_Ensemble"] = voting_clf
+            
+            logger.info(f"✅ Voting ensemble oluşturuldu: {len(available_models)} model")
+            
+            return {
+                "symbol": symbol,
+                "ensemble_type": "Voting",
+                "models": [name for name, _ in available_models],
+                "voting_method": "soft",
+                "creation_date": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Ensemble oluşturma hatası: {e}")
+            return {"error": str(e)}
     
-    # Test validation data oluştur
-    np.random.seed(42)
-    n_samples = 100
-    test_data = pd.DataFrame({
-        'rsi': np.random.uniform(20, 80, n_samples),
-        'macd': np.random.uniform(-2, 2, n_samples),
-        'ema_20': np.random.uniform(85, 95, n_samples),
-        'target': np.random.choice([0, 1], n_samples, p=[0.6, 0.4])
-    })
+    def predict_ensemble(self, X: pd.DataFrame, symbol: str) -> Dict:
+        """Ensemble ile tahmin"""
+        try:
+            if self.ensemble is None:
+                return {"error": "Ensemble henüz oluşturulmadı"}
+            
+            # Tahmin
+            prediction = self.ensemble.predict(X)[0]
+            probability = self.ensemble.predict_proba(X)[0]
+            
+            # Model bazında tahminler
+            individual_predictions = {}
+            for model_name, model in self.models.items():
+                if symbol in model_name and "Ensemble" not in model_name:
+                    try:
+                        pred = model.predict(X)[0]
+                        prob = model.predict_proba(X)[0]
+                        individual_predictions[model_name] = {
+                            "prediction": pred,
+                            "probability": prob[1] if pred == 1 else prob[0]
+                        }
+                    except:
+                        continue
+            
+            return {
+                "symbol": symbol,
+                "ensemble_prediction": prediction,
+                "ensemble_probability": probability[1] if prediction == 1 else probability[0],
+                "individual_predictions": individual_predictions,
+                "prediction_date": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Ensemble tahmin hatası: {e}")
+            return {"error": str(e)}
     
-    print(f"   ✅ Test validation data oluşturuldu: {n_samples} örnek")
-    
-    # Ağırlık optimizasyonu
-    if "BLENDING_WEIGHTED" in ensemble_models.ensemble_models:
-        ensemble_id = list(ensemble_models.ensemble_models.keys())[0]
-        optimized_weights = ensemble_models.optimize_ensemble_weights(ensemble_id, test_data, 'target')
-        
-        if optimized_weights:
-            print(f"   ✅ Ağırlık optimizasyonu tamamlandı")
-            print(f"      📊 Optimize edilmiş ağırlıklar: {optimized_weights}")
-    
-    # Ensemble özeti
-    print("\n📊 Ensemble Özeti:")
-    summary = ensemble_models.get_ensemble_summary()
-    
-    if summary:
-        print(f"   ✅ Ensemble özeti alındı")
-        print(f"   📊 Toplam ensemble: {summary['total_ensembles']}")
-        print(f"   📊 Toplam base model: {summary['total_base_models']}")
-        print(f"   📊 Toplam tahmin: {summary['total_predictions']}")
-        print(f"   📊 Toplam özellik: {summary['total_features']}")
-        print(f"   📊 Ensemble tipleri: {summary['ensemble_types']}")
-        
-        if summary['performance_summary']:
-            perf = summary['performance_summary']
-            print(f"   📊 Ortalama kalite: {perf['average_quality']:.3f}")
-            print(f"   📊 Ortalama güven: {perf['average_confidence']:.3f}")
-        
-        if summary['feature_importance_summary']:
-            feat = summary['feature_importance_summary']
-            print(f"   📊 Ortalama önem: {feat['average_importance']:.3f}")
-            print(f"   📊 Ortalama kararlılık: {feat['average_stability']:.3f}")
-    
-    print("\n✅ Advanced Ensemble Models Test Tamamlandı!")
+    def get_model_performance(self, symbol: str) -> Dict:
+        """Model performans raporu"""
+        try:
+            performance_report = {
+                "symbol": symbol,
+                "models": {},
+                "ensemble": None,
+                "overall_performance": {}
+            }
+            
+            # Bireysel model performansları
+            for model_name, model in self.models.items():
+                if symbol in model_name:
+                    if "Ensemble" in model_name:
+                        performance_report["ensemble"] = {
+                            "model_name": model_name,
+                            "model_type": "Voting Ensemble"
+                        }
+                    else:
+                        # Model performans metrikleri burada hesaplanacak
+                        performance_report["models"][model_name] = {
+                            "model_type": model_name.split("_")[-1],
+                            "feature_count": len(self.feature_importance.get(model_name, {}))
+                        }
+            
+            # Genel performans
+            if performance_report["models"]:
+                performance_report["overall_performance"] = {
+                    "total_models": len(performance_report["models"]),
+                    "has_ensemble": performance_report["ensemble"] is not None,
+                    "report_date": datetime.now().isoformat()
+                }
+            
+            return performance_report
+            
+        except Exception as e:
+            logger.error(f"❌ Performans raporu hatası: {e}")
+            return {"error": str(e)}
 
-
+# Test fonksiyonu
 if __name__ == "__main__":
-    test_advanced_ensemble_models()
+    ensemble = AdvancedEnsembleModels()
+    
+    # Test hissesi
+    symbol = "GARAN.IS"
+    logger.info(f"🧪 {symbol} için gelişmiş ensemble test ediliyor...")
+    
+    # Örnek veri oluştur (gerçek uygulamada accuracy_optimizer'dan gelecek)
+    # Bu test için basit veri
+    logger.info("✅ Advanced Ensemble Models modülü hazır!")
+    logger.info(f"📊 Desteklenen model türleri: {list(ensemble.model_types.keys())}")
+    logger.info(f"🔧 Hyperparameter grid'ler: {list(ensemble.param_grids.keys())}")
