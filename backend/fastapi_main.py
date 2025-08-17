@@ -27,7 +27,8 @@ try:
     from dupont_piotroski_analyzer import DuPontPiotroskiAnalyzer
     from macro_regime_detector import MacroRegimeDetector
     from auto_backtest_walkforward import AutoBacktestWalkForward
-    # from firestore_schema import FirestoreSchema  # Geçici olarak devre dışı
+    from bist_performance_tracker import BISTPerformanceTracker
+    from firestore_schema import FirestoreSchema
     from config import config
 except ImportError as e:
     print(f"⚠️ Import hatası: {e}")
@@ -63,6 +64,7 @@ sentiment_engine = None
 dupont_analyzer = None
 macro_detector = None
 backtest_engine = None
+performance_tracker = None
 firestore_schema = None
 
 @app.on_event("startup")
@@ -70,7 +72,7 @@ async def startup_event():
     """Uygulama başlangıcında çalışır"""
     global websocket_connector, topsis_ranking, fundamental_analyzer
     global technical_engine, ai_ensemble, rl_agent, sentiment_engine
-    global dupont_analyzer, macro_detector, backtest_engine, firestore_schema
+    global dupont_analyzer, macro_detector, backtest_engine, performance_tracker, firestore_schema
     
     try:
         logger.info("🚀 BIST AI Smart Trader başlatılıyor...")
@@ -138,6 +140,13 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"Auto Backtest & Walk Forward Engine hatası: {e}")
             backtest_engine = None
+            
+        try:
+            performance_tracker = BISTPerformanceTracker()
+            logger.info("✅ BIST Performance Tracker başlatıldı")
+        except Exception as e:
+            logger.warning(f"BIST Performance Tracker hatası: {e}")
+            performance_tracker = None
         
         # WebSocket connector (demo mode)
         websocket_connector = WebSocketConnector(
@@ -614,6 +623,124 @@ async def get_backtest_report(symbol: str):
         raise
     except Exception as e:
         logger.error(f"Backtest rapor hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# BIST Performance Tracker Endpoints
+@app.get("/performance/all")
+async def get_all_performance(force_update: bool = False):
+    """Tüm hisseler için performans metrikleri"""
+    try:
+        if performance_tracker is None:
+            raise HTTPException(status_code=503, detail="Performance tracker hazır değil")
+        
+        performance = performance_tracker.get_all_performance(force_update)
+        if not performance:
+            raise HTTPException(status_code=500, detail="Performans verisi alınamadı")
+        
+        return {
+            "total_stocks": len(performance),
+            "performance": performance,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Performans verisi hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/performance/summary")
+async def get_performance_summary():
+    """Genel performans özeti"""
+    try:
+        if performance_tracker is None:
+            raise HTTPException(status_code=503, detail="Performance tracker hazır değil")
+        
+        summary = performance_tracker.get_performance_summary()
+        if not summary:
+            raise HTTPException(status_code=500, detail="Performans özeti alınamadı")
+        
+        return {
+            "summary": summary,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Performans özeti hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/performance/top/{metric}")
+async def get_top_performers(metric: str, top_n: int = 10):
+    """En iyi performans gösteren hisseler"""
+    try:
+        if performance_tracker is None:
+            raise HTTPException(status_code=503, detail="Performance tracker hazır değil")
+        
+        top_stocks = performance_tracker.get_top_performers(metric, top_n)
+        if not top_stocks:
+            raise HTTPException(status_code=500, detail="Top performers alınamadı")
+        
+        return {
+            "metric": metric,
+            "top_n": top_n,
+            "stocks": top_stocks,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Top performers hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/performance/stock/{symbol}")
+async def get_stock_performance(symbol: str):
+    """Tek hisse için performans metrikleri"""
+    try:
+        if performance_tracker is None:
+            raise HTTPException(status_code=503, detail="Performance tracker hazır değil")
+        
+        metrics = performance_tracker.calculate_performance_metrics(symbol)
+        if not metrics:
+            raise HTTPException(status_code=404, detail=f"{symbol} için performans verisi bulunamadı")
+        
+        return {
+            "symbol": symbol,
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Hisse performans hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/performance/export")
+async def export_performance_csv():
+    """Performans verilerini CSV olarak export et"""
+    try:
+        if performance_tracker is None:
+            raise HTTPException(status_code=503, detail="Performance tracker hazır değil")
+        
+        filename = f"bist_performance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        success = performance_tracker.export_to_csv(filename)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="CSV export başarısız")
+        
+        return {
+            "message": "Performans verisi CSV'e export edildi",
+            "filename": filename,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CSV export hatası: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Error handlers

@@ -100,15 +100,57 @@ class SentimentConfig:
 class MarketDataConfig:
     """Market data configuration"""
     update_interval: int = 60  # 1 dakika
-    price_history_days: int = 365
-    fundamental_update_interval: int = 86400  # 24 saat
+    max_symbols: int = 100
+    cache_duration: int = 300  # 5 dakika
+    
+    # BIST-100 Hisse Listesi (En güçlü 25 hisse)
+    bist_stocks = [
+        # Bankalar (Güçlü bilanço, yüksek ROE)
+        "GARAN.IS", "AKBNK.IS", "YKBNK.IS", "ISCTR.IS", "HALKB.IS",
+        
+        # Savunma & Teknoloji (Büyüyen sektörler)
+        "ASELS.IS", "KRDMD.IS", "SASA.IS", "TCELL.IS", "TTKOM.IS",
+        
+        # Enerji & Sanayi (Devlet + özel)
+        "THYAO.IS", "PGSUS.IS", "TUPRS.IS", "EREGL.IS", "SISE.IS",
+        
+        # Holding & Çeşitli (Çeşitlendirilmiş)
+        "KCHOL.IS", "SAHOL.IS", "DOHOL.IS", "VESTL.IS", "BIMAS.IS",
+        
+        # Ek güçlü hisseler
+        "KERVN.IS", "KRDMD.IS", "SMRTG.IS", "TMSN.IS", "ULKER.IS"
+    ]
+    
+    # Performans Metrikleri
+    performance_metrics = [
+        "yukseleme_orani",    # % kaç yükseldi
+        "dusme_orani",        # % kaç düştü  
+        "dogruluk_orani",     # Tahmin doğruluğu
+        "win_rate",           # Kazanan trade oranı
+        "sharpe_ratio",       # Risk-getiri oranı
+        "max_drawdown",       # Maksimum düşüş
+        "total_return",       # Toplam getiri
+        "volatility",         # Volatilite
+        "calmar_ratio",       # Risk-adjusted return
+        "sortino_ratio"       # Downside risk
+    ]
+    
+    # Hedef Metrikler (PRD v2.0)
+    target_metrics = {
+        "yon_dogrulugu": 0.65,      # ≥65%
+        "buy_precision": 0.75,      # ≥75%
+        "equity_pf": 1.8,           # >1.8
+        "min_win_rate": 0.60,       # ≥60%
+        "min_sharpe": 1.2,          # ≥1.2
+        "max_drawdown": 0.15        # ≤15%
+    }
     
     @classmethod
     def from_env(cls):
         return cls(
-            update_interval=int(os.getenv('MARKET_DATA_UPDATE_INTERVAL', '60')),
-            price_history_days=int(os.getenv('PRICE_HISTORY_DAYS', '365')),
-            fundamental_update_interval=int(os.getenv('FUNDAMENTAL_UPDATE_INTERVAL', '86400'))
+            update_interval=int(os.getenv('MARKET_UPDATE_INTERVAL', '60')),
+            max_symbols=int(os.getenv('MAX_SYMBOLS', '100')),
+            cache_duration=int(os.getenv('CACHE_DURATION', '300'))
         )
 
 @dataclass
