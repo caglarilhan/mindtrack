@@ -13,6 +13,7 @@ ENV PYTHONPATH=/app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -21,21 +22,32 @@ COPY requirements.production.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.production.txt
 
-# Copy only necessary files
+# Copy PRD v2.0 core modules
 COPY fastapi_main.py .
-COPY auth.py .
 COPY config.py .
-COPY firestore_schema.py .
+
+# Grey TOPSIS & Financial Analysis
 COPY grey_topsis_ranking.py .
 COPY fundamental_analyzer.py .
+COPY dupont_piotroski_analyzer.py .
+COPY macro_regime_detector.py .
+
+# Technical Analysis & AI
 COPY technical_pattern_engine.py .
 COPY ai_ensemble_v2.py .
 COPY rl_portfolio_agent.py .
 COPY sentiment_xai_engine.py .
-COPY real_time_pipeline.py .
+
+# Backtesting & Optimization
+COPY auto_backtest_walkforward.py .
+
+# WebSocket & Real-time
 COPY websocket_connector.py .
-COPY production_test.py .
+COPY real_time_pipeline.py .
+
+# Monitoring & Production
 COPY monitoring/ ./monitoring/
+COPY production_test.py .
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
@@ -49,4 +61,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
-CMD ["uvicorn", "fastapi_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "fastapi_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

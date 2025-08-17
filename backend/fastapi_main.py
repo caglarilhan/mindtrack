@@ -24,7 +24,10 @@ try:
     from ai_ensemble_v2 import AIEnsemble
     from rl_portfolio_agent import RLPortfolioAgent
     from sentiment_xai_engine import SentimentXAIEngine
-    from firestore_schema import FirestoreSchema
+    from dupont_piotroski_analyzer import DuPontPiotroskiAnalyzer
+    from macro_regime_detector import MacroRegimeDetector
+    from auto_backtest_walkforward import AutoBacktestWalkForward
+    # from firestore_schema import FirestoreSchema  # Geçici olarak devre dışı
     from config import config
 except ImportError as e:
     print(f"⚠️ Import hatası: {e}")
@@ -57,13 +60,17 @@ technical_engine = None
 ai_ensemble = None
 rl_agent = None
 sentiment_engine = None
+dupont_analyzer = None
+macro_detector = None
+backtest_engine = None
 firestore_schema = None
 
 @app.on_event("startup")
 async def startup_event():
     """Uygulama başlangıcında çalışır"""
     global websocket_connector, topsis_ranking, fundamental_analyzer
-    global technical_engine, ai_ensemble, rl_agent, sentiment_engine, firestore_schema
+    global technical_engine, ai_ensemble, rl_agent, sentiment_engine
+    global dupont_analyzer, macro_detector, backtest_engine, firestore_schema
     
     try:
         logger.info("🚀 BIST AI Smart Trader başlatılıyor...")
@@ -110,6 +117,27 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"Sentiment XAI Engine hatası: {e}")
             sentiment_engine = None
+            
+        try:
+            dupont_analyzer = DuPontPiotroskiAnalyzer()
+            logger.info("✅ DuPont & Piotroski Analyzer başlatıldı")
+        except Exception as e:
+            logger.warning(f"DuPont & Piotroski Analyzer hatası: {e}")
+            dupont_analyzer = None
+            
+        try:
+            macro_detector = MacroRegimeDetector()
+            logger.info("✅ Macro Regime Detector başlatıldı")
+        except Exception as e:
+            logger.warning(f"Macro Regime Detector hatası: {e}")
+            macro_detector = None
+            
+        try:
+            backtest_engine = AutoBacktestWalkForward()
+            logger.info("✅ Auto Backtest & Walk Forward Engine başlatıldı")
+        except Exception as e:
+            logger.warning(f"Auto Backtest & Walk Forward Engine hatası: {e}")
+            backtest_engine = None
         
         # WebSocket connector (demo mode)
         websocket_connector = WebSocketConnector(
@@ -117,12 +145,12 @@ async def startup_event():
             symbols=["SISE.IS", "EREGL.IS", "TUPRS.IS", "AAPL", "MSFT", "GOOGL"]
         )
         
-        # Firestore schema
-        try:
-            firestore_schema = FirestoreSchema(None)  # Placeholder
-            logger.info("✅ Firestore schema hazır")
-        except Exception as e:
-            logger.warning(f"Firestore schema hatası: {e}")
+        # Firestore schema (geçici olarak devre dışı)
+        # try:
+        #     firestore_schema = FirestoreSchema(None)  # Placeholder
+        #     logger.info("✅ Firestore schema hazır")
+        # except Exception as e:
+        #     logger.warning(f"Firestore schema hatası: {e}")
         
         logger.info("✅ Tüm modüller başlatıldı")
         
@@ -152,6 +180,9 @@ async def health_check():
             "ai_ensemble": ai_ensemble is not None,
             "rl_agent": rl_agent is not None,
             "sentiment": sentiment_engine is not None,
+            "dupont_analyzer": dupont_analyzer is not None,
+            "macro_detector": macro_detector is not None,
+            "backtest_engine": backtest_engine is not None,
             "websocket": websocket_connector is not None
         }
     }
@@ -453,6 +484,136 @@ async def get_metrics():
         
     except Exception as e:
         logger.error(f"Metrics hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/dupont-piotroski/{symbol}")
+async def get_dupont_piotroski_analysis(symbol: str):
+    """DuPont & Piotroski F-Score analizi"""
+    try:
+        if dupont_analyzer is None:
+            raise HTTPException(status_code=503, detail="DuPont analyzer hazır değil")
+        
+        analysis = dupont_analyzer.get_comprehensive_analysis(symbol)
+        if not analysis:
+            raise HTTPException(status_code=404, detail=f"{symbol} analizi bulunamadı")
+        
+        return {
+            "symbol": symbol,
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"DuPont analiz hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/macro-regime")
+async def get_macro_regime_analysis(symbols: Optional[str] = None):
+    """Makro piyasa rejimi analizi"""
+    try:
+        if macro_detector is None:
+            raise HTTPException(status_code=503, detail="Macro detector hazır değil")
+        
+        # Sembolleri parse et
+        if symbols:
+            symbol_list = [s.strip() for s in symbols.split(",")]
+        else:
+            symbol_list = None  # Varsayılan makro semboller
+        
+        analysis = macro_detector.get_macro_analysis(symbol_list)
+        if not analysis:
+            raise HTTPException(status_code=500, detail="Makro analiz başarısız")
+        
+        return {
+            "analysis": analysis,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Makro analiz hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/backtest")
+async def run_backtest_analysis(
+    symbol: str,
+    period: str = "2y",
+    initial_capital: float = 100000,
+    include_walkforward: bool = True,
+    include_optimization: bool = False
+):
+    """Backtest ve walk forward analizi çalıştır"""
+    try:
+        if backtest_engine is None:
+            raise HTTPException(status_code=503, detail="Backtest engine hazır değil")
+        
+        # Veri al
+        data = backtest_engine.get_stock_data_for_backtest(symbol, period)
+        if data.empty:
+            raise HTTPException(status_code=404, detail=f"{symbol} verisi bulunamadı")
+        
+        # Teknik indikatörler
+        data_with_indicators = backtest_engine.calculate_technical_indicators(data)
+        
+        # Backtest çalıştır
+        backtest_result = backtest_engine.run_backtest(data_with_indicators, initial_capital)
+        if not backtest_result:
+            raise HTTPException(status_code=500, detail="Backtest başarısız")
+        
+        # Walk Forward analizi
+        walk_forward_result = None
+        if include_walkforward:
+            walk_forward_result = backtest_engine.run_walk_forward_analysis(data_with_indicators)
+        
+        # Parametre optimizasyonu
+        optimization_result = None
+        if include_optimization:
+            optimization_result = backtest_engine.optimize_strategy_parameters(data_with_indicators)
+        
+        # Rapor oluştur
+        report = backtest_engine.generate_backtest_report(
+            symbol, backtest_result, walk_forward_result, optimization_result
+        )
+        
+        return {
+            "symbol": symbol,
+            "backtest_result": backtest_result,
+            "walk_forward_result": walk_forward_result,
+            "optimization_result": optimization_result,
+            "report": report,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Backtest hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/backtest/{symbol}")
+async def get_backtest_report(symbol: str):
+    """Mevcut backtest raporunu getir"""
+    try:
+        if backtest_engine is None:
+            raise HTTPException(status_code=503, detail="Backtest engine hazır değil")
+        
+        # Cache'den rapor al
+        if symbol in backtest_engine.backtest_results:
+            return {
+                "symbol": symbol,
+                "report": backtest_engine.backtest_results[symbol],
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"{symbol} için backtest raporu bulunamadı")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Backtest rapor hatası: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Error handlers
