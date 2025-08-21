@@ -1127,3 +1127,104 @@ INFO:ai_models.macro_regime_detector:HMM makro rejim dedektörü yüklendi
 INFO:     127.0.0.1:56308 - "GET /ai/macro/regime HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56314 - "GET / HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56320 - "GET /dashboard HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'ai_models/sentiment_tr.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [7265]
+INFO:     Started server process [10607]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+INFO:fastapi_main:✅ BIST Performance Tracker başlatıldı
+INFO:fastapi_main:✅ Accuracy Optimizer başlatıldı
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'ai_models/macro_regime_detector.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10607]
+INFO:     Started server process [10647]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+INFO:fastapi_main:✅ BIST Performance Tracker başlatıldı
+INFO:fastapi_main:✅ Accuracy Optimizer başlatıldı
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'ai_models/macro_regime_detector.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10647]
+INFO:     Started server process [10684]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+INFO:fastapi_main:✅ BIST Performance Tracker başlatıldı
+INFO:fastapi_main:✅ Accuracy Optimizer başlatıldı
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10684]
+INFO:     Started server process [10733]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+WARNING:fastapi_main:BIST Performance Tracker hatası: name 'BISTPerformanceTracker' is not defined
+WARNING:fastapi_main:Accuracy Optimizer hatası: name 'AccuracyOptimizer' is not defined
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları yüklendi
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+Device set to use mps:0
+INFO:ai_models.sentiment_tr:FinBERT-TR sentiment modeli yüklendi
+INFO:ai_models.macro_regime_detector:HMM makro rejim dedektörü yüklendi
+WARNING:ai_models.ensemble_manager:LightGBM model eğitilmemiş
+INFO:ai_models.ensemble_manager:LSTM modeli devre dışı veya eğitilmemiş (TensorFlow bulunamadı veya model yüklenmedi)
+ERROR:yfinance:
+1 Failed download:
+ERROR:yfinance:['^XU030']: YFPricesMissingError('possibly delisted; no price data found  (1d 2025-05-23 19:07:11.912053 -> 2025-08-21 19:07:11.912053)')
+ERROR:ai_models.macro_regime_detector:Makro veri çekme hatası: Data must be 1-dimensional, got ndarray of shape (91, 1) instead
+ERROR:ai_models.macro_regime_detector:Özellik hesaplama hatası: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 0, the array at index 0 has size 70 and the array at index 1 has size 50
+WARNING:ai_models.macro_regime_detector:HMM modeli düşük kalitede
+⚠️ Import hatası: cannot import name 'MarketDataConfig' from 'config' (/Users/caglarilhan/borsailhanos/backend/config.py)
+INFO:     127.0.0.1:56972 - "GET /ai/ensemble/prediction/SISE.IS HTTP/1.1" 200 OK
