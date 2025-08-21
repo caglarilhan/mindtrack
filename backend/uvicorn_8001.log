@@ -1,0 +1,112 @@
+INFO:     Will watch for changes in these directories: ['/Users/caglarilhan/borsailhanos/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [62800] using WatchFiles
+INFO:     Started server process [62805]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+INFO:fastapi_main:✅ BIST Performance Tracker başlatıldı
+INFO:fastapi_main:✅ Accuracy Optimizer başlatıldı
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+INFO:     127.0.0.1:57171 - "GET /health HTTP/1.1" 200 OK
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:     127.0.0.1:57177 - "GET /ai/models/status HTTP/1.1" 200 OK
+DEBUG: EREGL.IS için pattern tarama başladı
+DEBUG: Veri boyutu: 50
+DEBUG: Son 5 fiyat: [27.65999984741211, 28.780000686645508, 29.360000610351562, 29.299999237060547, 29.739999771118164]
+DEBUG: EMA cross bulunamadı
+DEBUG: Candlestick tespit - son 2 mum:
+  Mum -2: O=29.20, H=29.66, L=29.20, C=29.30
+  Mum -1: O=29.38, H=29.80, L=29.38, C=29.74
+DEBUG: Candlestick patterns bulundu: 0
+DEBUG: Harmonic patterns bulundu: 0
+DEBUG: Breakout patterns bulundu: 0
+DEBUG: Toplam 0 pattern, filtrelenmiş: 0
+INFO:     127.0.0.1:57183 - "GET /analysis/patterns/EREGL.IS HTTP/1.1" 200 OK
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları kaydedildi
+INFO:ai_models.ensemble_manager:Varsayılan ağırlıklar kullanılıyor
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+WARNING:ai_models.ensemble_manager:LightGBM model eğitilmemiş
+INFO:ai_models.ensemble_manager:LSTM modeli devre dışı veya eğitilmemiş (TensorFlow bulunamadı veya model yüklenmedi)
+ERROR:ai_models.ensemble_manager:Tahmin birleştirme hatası: 'TimeGPTForecast' object has no attribute 'trend_direction'
+ERROR:fastapi_main:AI Ensemble tahmin hatası: 500: Ensemble tahmin yapılamadı
+INFO:     127.0.0.1:57192 - "GET /ai/ensemble/prediction/SISE.IS HTTP/1.1" 500 Internal Server Error
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları yüklendi
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+INFO:     127.0.0.1:57197 - "GET /ai/ensemble/weights HTTP/1.1" 200 OK
+INFO:ai_models.lightgbm_model:LightGBM model eğitimi başladı
+INFO:ai_models.lightgbm_model:Feature sayısı: 71
+INFO:ai_models.lightgbm_model:Veri boyutu: 359
+INFO:ai_models.lightgbm_model:Validation skorları: {'avg_accuracy': np.float64(0.8576271186440678), 'avg_precision': np.float64(0.05), 'avg_recall': np.float64(0.02222222222222222), 'avg_f1': np.float64(0.03076923076923077), 'avg_auc': np.float64(0.6167979797979798), 'std_accuracy': np.float64(0.03321342024112783), 'std_auc': np.float64(0.08927605992668503)}
+INFO:ai_models.lightgbm_model:Top 10 önemli feature'lar:
+INFO:ai_models.lightgbm_model:  bbands_width: 62.0000
+INFO:ai_models.lightgbm_model:  returns_lag_5: 56.0000
+INFO:ai_models.lightgbm_model:  volume_lag_2: 48.0000
+INFO:ai_models.lightgbm_model:  obv: 45.0000
+INFO:ai_models.lightgbm_model:  returns: 41.0000
+INFO:ai_models.lightgbm_model:  returns_kurt_10: 41.0000
+INFO:ai_models.lightgbm_model:  price_sma_5_ratio: 37.0000
+INFO:ai_models.lightgbm_model:  returns_lag_1: 36.0000
+INFO:ai_models.lightgbm_model:  volume_lag_3: 33.0000
+INFO:ai_models.lightgbm_model:  adx: 26.0000
+INFO:ai_models.lightgbm_model:Model kaydedildi: models/lightgbm_model.pkl
+INFO:     127.0.0.1:57203 - "POST /ai/train/lightgbm?symbol=SISE.IS&period=360d&interval=1d HTTP/1.1" 200 OK
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları yüklendi
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+WARNING:ai_models.ensemble_manager:LightGBM model eğitilmemiş
+INFO:ai_models.ensemble_manager:LSTM modeli devre dışı veya eğitilmemiş (TensorFlow bulunamadı veya model yüklenmedi)
+ERROR:ai_models.ensemble_manager:Tahmin birleştirme hatası: 'TimeGPTForecast' object has no attribute 'trend_direction'
+ERROR:fastapi_main:AI Ensemble tahmin hatası: 500: Ensemble tahmin yapılamadı
+INFO:     127.0.0.1:57209 - "GET /ai/ensemble/prediction/SISE.IS HTTP/1.1" 500 Internal Server Error
+WARNING:  WatchFiles detected changes in 'ai_models/ensemble_manager.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62805]
+INFO:     Started server process [63974]
+INFO:     Waiting for application startup.
+INFO:fastapi_main:🚀 BIST AI Smart Trader başlatılıyor...
+INFO:fastapi_main:✅ Grey TOPSIS Ranking başlatıldı
+INFO:fastapi_main:✅ Fundamental Analyzer başlatıldı
+INFO:fastapi_main:✅ Technical Pattern Engine başlatıldı
+INFO:fastapi_main:✅ AI Ensemble başlatıldı
+INFO:fastapi_main:✅ RL Portfolio Agent başlatıldı
+INFO:fastapi_main:✅ Sentiment XAI Engine başlatıldı
+INFO:fastapi_main:✅ DuPont & Piotroski Analyzer başlatıldı
+INFO:fastapi_main:✅ Macro Regime Detector başlatıldı
+INFO:fastapi_main:✅ Auto Backtest & Walk Forward Engine başlatıldı
+INFO:fastapi_main:✅ BIST Performance Tracker başlatıldı
+INFO:fastapi_main:✅ Accuracy Optimizer başlatıldı
+ERROR:fastapi_main:Startup hatası: WebSocketConnector.__init__() got an unexpected keyword argument 'finnhub_api_key'
+INFO:     Application startup complete.
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları yüklendi
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+WARNING:ai_models.ensemble_manager:LightGBM model eğitilmemiş
+INFO:ai_models.ensemble_manager:LSTM modeli devre dışı veya eğitilmemiş (TensorFlow bulunamadı veya model yüklenmedi)
+INFO:     127.0.0.1:57278 - "GET /ai/ensemble/prediction/SISE.IS HTTP/1.1" 200 OK
+INFO:ai_models.ensemble_manager:AI Ensemble modelleri başlatılıyor...
+WARNING:ai_models.timegpt_model:TimeGPT API key bulunamadı. Mock mode kullanılıyor.
+INFO:ai_models.ensemble_manager:Model ağırlıkları yüklendi
+INFO:ai_models.ensemble_manager:AI Ensemble başlatıldı
+WARNING:ai_models.ensemble_manager:LightGBM model eğitilmemiş
+INFO:ai_models.ensemble_manager:LSTM modeli devre dışı veya eğitilmemiş (TensorFlow bulunamadı veya model yüklenmedi)
+INFO:     127.0.0.1:57290 - "GET /rl/decision/SISE.IS HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57297 - "GET /snapshots/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57316 - "GET /snapshots/topsis HTTP/1.1" 200 OK
