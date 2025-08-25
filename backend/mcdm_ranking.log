@@ -1,0 +1,53 @@
+2025-08-25 20:21:14,284 - __main__ - ERROR - Invalid ideal solutions in TOPSIS
+2025-08-25 20:21:14,284 - __main__ - ERROR - TOPSIS calculation failed for BIST
+2025-08-25 20:21:17,274 - __main__ - INFO - US sıralama tamamlandı: 2.99s
+2025-08-25 20:21:17,275 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:21:17,277 - __main__ - ERROR - Invalid ideal solutions in TOPSIS
+2025-08-25 20:21:17,277 - __main__ - ERROR - TOPSIS calculation failed for BIST
+2025-08-25 20:21:17,277 - __main__ - INFO - Using cached ranking for US
+2025-08-25 20:21:17,277 - __main__ - WARNING - Individual rankings not available for combined ranking
+2025-08-25 20:21:17,277 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:21:17,325 - __main__ - INFO - MCDM Ranking cleanup completed
+2025-08-25 20:21:40,342 - __main__ - INFO - Historical ranking data loaded
+2025-08-25 20:21:43,538 - __main__ - ERROR - Invalid ideal solutions in TOPSIS
+2025-08-25 20:21:43,539 - __main__ - ERROR - TOPSIS calculation failed for BIST
+2025-08-25 20:21:45,635 - __main__ - INFO - US sıralama tamamlandı: 2.10s
+2025-08-25 20:21:45,636 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:21:45,638 - __main__ - ERROR - Invalid ideal solutions in TOPSIS
+2025-08-25 20:21:45,638 - __main__ - ERROR - TOPSIS calculation failed for BIST
+2025-08-25 20:21:45,638 - __main__ - INFO - Using cached ranking for US
+2025-08-25 20:21:45,638 - __main__ - WARNING - Individual rankings not available for combined ranking
+2025-08-25 20:21:45,639 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:21:45,685 - __main__ - INFO - MCDM Ranking cleanup completed
+2025-08-25 20:22:08,839 - __main__ - INFO - Historical ranking data loaded
+2025-08-25 20:22:12,152 - __main__ - INFO - Decision matrix shape: (20, 10)
+2025-08-25 20:22:12,152 - __main__ - INFO - Data quality: 1.00
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column net_profit_margin: 0 zeros, 5 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column roe: 0 zeros, 5 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column roa: 0 zeros, 3 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column gross_margin: 4 zeros, 1 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column current_ratio: 4 zeros, 0 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column quick_ratio: 4 zeros, 0 negatives
+2025-08-25 20:22:12,153 - __main__ - WARNING - Column cash_ratio: 20 zeros, 0 negatives
+2025-08-25 20:22:12,154 - __main__ - WARNING - Column debt_to_equity: 4 zeros, 0 negatives
+2025-08-25 20:22:12,154 - __main__ - WARNING - Column debt_to_assets: 20 zeros, 0 negatives
+2025-08-25 20:22:12,154 - __main__ - WARNING - Column interest_coverage: 20 zeros, 0 negatives
+2025-08-25 20:22:12,165 - __main__ - WARNING - Invalid cost criteria value at index 8, using fallback
+2025-08-25 20:22:12,230 - __main__ - INFO - BIST sıralama tamamlandı: 3.39s
+2025-08-25 20:22:12,232 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:22:14,282 - __main__ - INFO - Decision matrix shape: (14, 10)
+2025-08-25 20:22:14,282 - __main__ - INFO - Data quality: 1.00
+2025-08-25 20:22:14,282 - __main__ - WARNING - Column net_profit_margin: 0 zeros, 1 negatives
+2025-08-25 20:22:14,282 - __main__ - WARNING - Column roe: 0 zeros, 1 negatives
+2025-08-25 20:22:14,283 - __main__ - WARNING - Column roa: 0 zeros, 1 negatives
+2025-08-25 20:22:14,283 - __main__ - WARNING - Column cash_ratio: 14 zeros, 0 negatives
+2025-08-25 20:22:14,284 - __main__ - WARNING - Column debt_to_assets: 14 zeros, 0 negatives
+2025-08-25 20:22:14,284 - __main__ - WARNING - Column interest_coverage: 14 zeros, 0 negatives
+2025-08-25 20:22:14,334 - __main__ - INFO - US sıralama tamamlandı: 2.10s
+2025-08-25 20:22:14,341 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:22:14,342 - __main__ - INFO - Using cached ranking for BIST
+2025-08-25 20:22:14,342 - __main__ - INFO - Using cached ranking for US
+2025-08-25 20:22:14,342 - __main__ - INFO - Using cached ranking for BIST
+2025-08-25 20:22:14,347 - __main__ - INFO - CSV export completed: BIST_ranking_20250825_202214.csv
+2025-08-25 20:22:14,349 - __main__ - INFO - Historical ranking data saved
+2025-08-25 20:22:14,403 - __main__ - INFO - MCDM Ranking cleanup completed
