@@ -36,6 +36,7 @@ export default function PrescriptionManagementEprescribing() {
   const [showRegionDetails, setShowRegionDetails] = useState(false);
   const [erxRecords, setErxRecords] = useState<EPrescriptionRecord[]>(getERxRecords());
   const [auditLogs, setAuditLogs] = useState(getAuditLogs());
+  const [erxMessage, setErxMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const handleAddPrescription = (p: Prescription) => {
     setPrescriptions((prev) => [p, ...prev]);
@@ -80,7 +81,17 @@ export default function PrescriptionManagementEprescribing() {
           <Button onClick={() => setShowRegionDetails(true)} variant="outline">
             Bölge Detayları
           </Button>
-          <Button onClick={() => setActiveTab("erx")}>Yeni Reçete</Button>
+          <Button
+            onClick={() => {
+              setActiveTab("erx");
+              requestAnimationFrame(() => {
+                const el = document.getElementById("erx-form-anchor");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              });
+            }}
+          >
+            Yeni Reçete
+          </Button>
         </div>
       </div>
 
@@ -105,7 +116,7 @@ export default function PrescriptionManagementEprescribing() {
       {activeTab === "prescriptions" && (
         <div className="space-y-3">
           <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
-            Reçeteler sekmesi: Arama, durum filtresi ve tablo. Satıra tıklayınca detay modalı açabilirsiniz.
+            Reçeteler sekmesi: Arama, durum filtresi ve tablo. Satıra tıklayınca detay modalı açılır.
           </div>
           <PrescriptionsTab
             prescriptions={prescriptions}
@@ -128,6 +139,7 @@ export default function PrescriptionManagementEprescribing() {
             region={region}
             prescriptions={prescriptions}
             erxRecords={erxRecords}
+            message={erxMessage}
             onRetryERx={(erxId) => {
               // retry için yeniden mock simülasyonu
               const succeed = Math.random() < 0.9;
@@ -139,6 +151,7 @@ export default function PrescriptionManagementEprescribing() {
                   prescriptionId: erxRecords.find((r) => r.id === erxId)?.prescriptionId,
                   details: "E-Reçete yeniden denendi ve gönderildi (mock)",
                 });
+              setErxMessage({ type: "success", text: "E-Reçete retry başarılı (mock)" });
               } else {
                 markERxFailed(erxId, "PHARM_RETRY_FAIL", "Eczane yanıt vermedi (retry)");
                 addAuditEntry({
@@ -147,6 +160,7 @@ export default function PrescriptionManagementEprescribing() {
                   prescriptionId: erxRecords.find((r) => r.id === erxId)?.prescriptionId,
                   details: "Retry başarısız (mock)",
                 });
+              setErxMessage({ type: "error", text: "Retry başarısız (mock)" });
               }
               setErxRecords(getERxRecords());
               setAuditLogs(getAuditLogs());
@@ -167,6 +181,7 @@ export default function PrescriptionManagementEprescribing() {
                     prescriptionId: p.id,
                     details: "E-Reçete gönderildi (mock)",
                   });
+                setErxMessage({ type: "success", text: "E-Reçete gönderildi (mock)" });
                 } else {
                   markERxFailed(pending.id, "PHARM_TIMEOUT", "Eczane yanıt vermedi");
                   addAuditEntry({
@@ -175,6 +190,7 @@ export default function PrescriptionManagementEprescribing() {
                     prescriptionId: p.id,
                     details: "E-Reçete gönderimi başarısız (mock)",
                   });
+                setErxMessage({ type: "error", text: "E-Reçete gönderimi başarısız (mock)" });
                 }
                 setErxRecords(getERxRecords());
                 setAuditLogs(getAuditLogs());
@@ -193,20 +209,25 @@ export default function PrescriptionManagementEprescribing() {
       )}
 
       {activeTab === "interactions" && (
-        <DrugInteractionChecker
-          medications={
-            prescriptions.length > 0
-              ? prescriptions.flatMap((p) => p.medications)
-              : [
-                  { name: "Sertraline" },
-                  { name: "Bupropion" },
-                  { name: "Alprazolam" },
-                  { name: "Paroksetin" },
-                  { name: "Escitalopram" },
-                  { name: "Tramadol" },
-                ]
-          }
-        />
+        <div className="space-y-3">
+          <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
+            Etkileşimler sekmesi: En az iki ilaç seçip “Etkileşimleri Kontrol Et”e basın. Liste boşsa aşağıdaki örnek ilaçlar kullanılır.
+          </div>
+          <DrugInteractionChecker
+            medications={
+              prescriptions.length > 0
+                ? prescriptions.flatMap((p) => p.medications)
+                : [
+                    { name: "Sertraline" },
+                    { name: "Bupropion" },
+                    { name: "Alprazolam" },
+                    { name: "Paroksetin" },
+                    { name: "Escitalopram" },
+                    { name: "Tramadol" },
+                  ]
+            }
+          />
+        </div>
       )}
 
       {activeTab === "lab" && (

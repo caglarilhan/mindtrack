@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { checkInteractions, checkDose, checkAllergy } from "@/lib/prescription/safety-engine";
 import { mockPatients } from "@/lib/prescription/mock-patients";
 import { PrescriptionTemplate } from "@/lib/prescription/templates";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   region: RegionId;
@@ -211,6 +212,21 @@ export function NewPrescriptionForm({ region, onSubmit, template }: Props) {
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Kısa not" />
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          {doseAlert && (
+            <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200">Doz: {doseAlert}</Badge>
+          )}
+          {allergyAlert && (
+            <Badge className="bg-red-100 text-red-800 border border-red-200">Alerji: {allergyAlert}</Badge>
+          )}
+          {interactionAlert && (
+            <Badge className="bg-orange-100 text-orange-800 border border-orange-200">Etkileşim: {interactionAlert}</Badge>
+          )}
+          {!doseAlert && !allergyAlert && !interactionAlert && (
+            <Badge variant="outline">Güvenlik uyarısı bulunmuyor</Badge>
+          )}
+        </div>
+
         {doseAlert && (
           <Alert variant="warning">
             <AlertTitle>Doz Uyarısı</AlertTitle>

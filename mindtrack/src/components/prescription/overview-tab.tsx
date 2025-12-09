@@ -85,23 +85,29 @@ export function OverviewTab({ prescriptions, region, erxTotal = 0, onMetricClick
               <span>Tarih</span>
             </div>
             {recent.map((p) => (
-              <div
-                key={p.id}
-                className="grid grid-cols-5 items-center p-2 rounded-md hover:bg-muted cursor-pointer text-sm"
-                onClick={() => onSelectPrescription(p)}
-              >
-                <div>{p.patientName}</div>
-                <div>
+              <div key={p.id} className="grid grid-cols-5 items-center p-2 text-sm">
+                <div className="p-2 border rounded-md bg-white shadow-sm">
+                  <div className="font-medium">{p.patientName}</div>
+                  <div className="text-xs text-gray-600">{new Date(p.createdAt).toLocaleDateString("tr-TR")}</div>
+                </div>
+                <div className="p-2 border rounded-md bg-white shadow-sm">
                   {p.medications[0]?.name}
                   {p.medications.length > 1 ? ` +${p.medications.length - 1}` : ""}
                 </div>
-                <div>
+                <div className="p-2 border rounded-md bg-white shadow-sm flex items-center">
                   <StatusBadge status={p.status} />
                 </div>
-                <div>
+                <div className="p-2 border rounded-md bg-white shadow-sm flex items-center">
                   <RiskBadge risk={p.risk} />
                 </div>
-                <div>{new Date(p.createdAt).toLocaleDateString("tr-TR")}</div>
+                <div className="p-2 border rounded-md bg-white shadow-sm flex items-center">
+                  <button
+                    className="text-xs text-blue-600 hover:underline"
+                    onClick={() => onSelectPrescription(p)}
+                  >
+                    Detay
+                  </button>
+                </div>
               </div>
             ))}
             {recent.length === 0 && <p className="text-sm text-gray-500">Kayıt yok</p>}
@@ -113,9 +119,15 @@ export function OverviewTab({ prescriptions, region, erxTotal = 0, onMetricClick
             <CardTitle>Uyumluluk</CardTitle>
             <CardDescription>Bölgeye özel kısa bilgi</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm text-gray-700 space-y-2">
+          <CardContent className="text-sm text-gray-700 space-y-3">
             <p>Region: {region}</p>
-            <p>Bu sprintte temel skor gösterimi. Detaylı audit/kontrollü maddeler Compliance sekmesinde.</p>
+            <p>Detaylı audit / kontrollü maddeler için Uyumluluk sekmesine geçin.</p>
+            <button
+              className="text-xs px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+              onClick={() => onMetricClick("compliance")}
+            >
+              Uyumluluk sekmesine git
+            </button>
           </CardContent>
         </Card>
       </div>

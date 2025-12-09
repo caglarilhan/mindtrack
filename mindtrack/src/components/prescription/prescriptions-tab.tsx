@@ -64,6 +64,11 @@ export function PrescriptionsTab({
             </div>
           </div>
           <PrescriptionsTable prescriptions={filtered} onView={onViewPrescription} onVoid={onVoidPrescription} />
+          {filtered.length === 0 && (
+            <div className="p-3 border rounded-md text-sm text-gray-700 bg-muted/30">
+              Kayıt bulunamadı. Yeni Reçete oluşturmak için sağ üstteki butonu kullanın.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

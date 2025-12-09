@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Prescription } from "@/lib/prescription/types";
 import { StatusBadge } from "./status-badge";
 import { RiskBadge } from "./risk-badge";
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   prescriptions: Prescription[];
@@ -38,12 +39,17 @@ export function PrescriptionsTable({ prescriptions, onView, onVoid }: Props) {
                 </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Risk</TableHead>
+                <TableHead>Region / Eczane</TableHead>
                 <TableHead>Aksiyonlar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((p) => (
-                <TableRow key={p.id}>
+            {sorted.map((p) => (
+              <TableRow
+                key={p.id}
+                className="cursor-pointer hover:bg-muted/40"
+                onClick={() => onView(p.id)}
+              >
                   <TableCell>{p.patientName}</TableCell>
                   <TableCell>
                     {p.medications[0]?.name}
@@ -56,14 +62,30 @@ export function PrescriptionsTable({ prescriptions, onView, onVoid }: Props) {
                   <TableCell>
                     <RiskBadge risk={p.risk} />
                   </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="outline">{p.region}</Badge>
+                    {p.pharmacyName && (
+                      <span className="text-xs text-gray-600">{p.pharmacyName}</span>
+                    )}
+                  </div>
+                </TableCell>
                   <TableCell className="space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => onView(p.id)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onView(p.id);
+                      }}
+                    >
                       View
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        e.stopPropagation();
                         if (confirm("Bu reçeteyi iptal etmek istiyor musunuz?")) onVoid(p.id);
                       }}
                     >
