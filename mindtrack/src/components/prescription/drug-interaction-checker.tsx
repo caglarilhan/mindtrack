@@ -14,6 +14,13 @@ interface Props {
 export function DrugInteractionChecker({ medications }: Props) {
   const [results, setResults] = React.useState<DrugInteractionResult[]>([]);
 
+  const riskColor: Record<DrugInteractionResult["risk"], string> = {
+    major: "bg-red-100 text-red-800 border-red-200",
+    moderate: "bg-orange-100 text-orange-800 border-orange-200",
+    minor: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    none: "bg-green-100 text-green-800 border-green-200",
+  };
+
   const handleCheck = () => {
     const names = medications.map((m) => m.name);
     const res = checkInteractions(names);
@@ -38,13 +45,24 @@ export function DrugInteractionChecker({ medications }: Props) {
           Etkileşimleri Kontrol Et
         </Button>
         {results.length === 0 && (
-          <p className="text-sm text-gray-600">Etkileşim bulunamadı veya henüz kontrol etmediniz.</p>
+          <p className="text-sm text-gray-600">
+            {medications.length === 0
+              ? "Henüz ilaç eklenmedi. Etkileşim kontrolü için en az iki ilaç seçin."
+              : "Etkileşim bulunamadı veya henüz kontrol etmediniz."}
+          </p>
         )}
         {results.map((r, idx) => (
-          <Alert key={idx} variant={r.risk === "major" ? "destructive" : "default"}>
-            <AlertTitle>
-              {r.drugA} + {r.drugB} → {r.risk.toUpperCase()}
-            </AlertTitle>
+          <Alert
+            key={idx}
+            variant={r.risk === "major" ? "destructive" : r.risk === "moderate" ? "warning" : "default"}
+            className="flex flex-col gap-1"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTitle className="flex-1">
+                {r.drugA} + {r.drugB}
+              </AlertTitle>
+              <Badge className={riskColor[r.risk]}>{r.risk.toUpperCase()}</Badge>
+            </div>
             <AlertDescription>{r.message}</AlertDescription>
           </Alert>
         ))}

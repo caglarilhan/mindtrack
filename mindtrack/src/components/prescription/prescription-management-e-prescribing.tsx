@@ -19,8 +19,12 @@ import { LabTrackingTab } from "./lab-tracking-tab";
 import { SideEffectsTab } from "./side-effects-tab";
 import { mockSideEffects } from "@/lib/prescription/side-effects";
 import { EPrescribingDetails } from "./e-prescribing-details";
-import { getERxRecords, createPendingERx, markERxFailed, markERxSent } from "@/lib/prescription/mock-erx-store";
-import { addAuditEntry } from "@/lib/prescription/audit-log";
+import { addAuditEntry, getAuditLogs } from "@/lib/prescription/audit-log";
+import { EPrescriptionRecord } from "@/lib/prescription/erx-types";
+import { createPendingERx, markERxFailed, markERxSent, getERxRecords } from "@/lib/prescription/mock-erx-store";
+import { ControlledSubstancesTable } from "./controlled-substances-table";
+import { AuditLogTable } from "./audit-log-table";
+import { PrescriptionTemplate } from "@/lib/prescription/templates";
 
 type ActiveTab = "overview" | "prescriptions" | "erx" | "interactions" | "lab" | "sideEffects" | "compliance";
 
@@ -30,8 +34,8 @@ export default function PrescriptionManagementEprescribing() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(mockPrescriptions);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [showRegionDetails, setShowRegionDetails] = useState(false);
-  const [_, forceRerender] = useState(0); // for mock stores
-  const erxRecords = getERxRecords();
+  const [erxRecords, setErxRecords] = useState<EPrescriptionRecord[]>(getERxRecords());
+  const [auditLogs, setAuditLogs] = useState(getAuditLogs());
 
   const handleAddPrescription = (p: Prescription) => {
     setPrescriptions((prev) => [p, ...prev]);
@@ -90,6 +94,7 @@ export default function PrescriptionManagementEprescribing() {
         <OverviewTab
           prescriptions={prescriptions}
           region={region}
+          erxTotal={erxRecords.length}
           onMetricClick={(tab) => setActiveTab(tab)}
           onSelectPrescription={(p) => {
             setSelectedPrescription(p);
@@ -98,58 +103,129 @@ export default function PrescriptionManagementEprescribing() {
       )}
 
       {activeTab === "prescriptions" && (
-        <PrescriptionsTab
-          prescriptions={prescriptions}
-          onNewPrescriptionClick={() => setActiveTab("erx")}
-          onViewPrescription={(id) => {
-            const found = prescriptions.find((p) => p.id === id) || null;
-            setSelectedPrescription(found);
-          }}
-          onVoidPrescription={handleVoidPrescription}
-        />
+        <div className="space-y-3">
+          <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
+            Reçeteler sekmesi: Arama, durum filtresi ve tablo. Satıra tıklayınca detay modalı açabilirsiniz.
+          </div>
+          <PrescriptionsTab
+            prescriptions={prescriptions}
+            onNewPrescriptionClick={() => setActiveTab("erx")}
+            onViewPrescription={(id) => {
+              const found = prescriptions.find((p) => p.id === id) || null;
+              setSelectedPrescription(found);
+            }}
+            onVoidPrescription={handleVoidPrescription}
+          />
+        </div>
       )}
 
       {activeTab === "erx" && (
-        <ErxTab
-          region={region}
-          onCreatePrescription={(p) => {
-            handleAddPrescription(p);
-            const pending = createPendingERx(p.id);
-            // mock send: 90% success
-            setTimeout(() => {
-              if (Math.random() < 0.9) {
-                markERxSent(pending.id);
+        <div className="space-y-3">
+          <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
+            E-Reçete sekmesi: Yeni Reçete formu, şablon seçimi ve mock gönderim kuyruğu. “Yeni Reçete” butonu buraya getirir.
+          </div>
+          <ErxTab
+            region={region}
+            prescriptions={prescriptions}
+            erxRecords={erxRecords}
+            onRetryERx={(erxId) => {
+              // retry için yeniden mock simülasyonu
+              const succeed = Math.random() < 0.9;
+              if (succeed) {
+                markERxSent(erxId);
                 addAuditEntry({
                   userId: "test@mindtrack.com",
-                  eventType: "ERX_SENT",
-                  prescriptionId: p.id,
-                  details: "E-Reçete gönderildi (mock)",
+                  eventType: "ERX_RETRY",
+                  prescriptionId: erxRecords.find((r) => r.id === erxId)?.prescriptionId,
+                  details: "E-Reçete yeniden denendi ve gönderildi (mock)",
                 });
               } else {
-                markERxFailed(pending.id, "PHARM_TIMEOUT", "Eczane yanıt vermedi");
+                markERxFailed(erxId, "PHARM_RETRY_FAIL", "Eczane yanıt vermedi (retry)");
                 addAuditEntry({
                   userId: "test@mindtrack.com",
                   eventType: "ERX_FAILED",
-                  prescriptionId: p.id,
-                  details: "E-Reçete gönderimi başarısız (mock)",
+                  prescriptionId: erxRecords.find((r) => r.id === erxId)?.prescriptionId,
+                  details: "Retry başarısız (mock)",
                 });
               }
-              forceRerender((x) => x + 1);
-            }, 800);
-            setActiveTab("erx");
-          }}
+              setErxRecords(getERxRecords());
+              setAuditLogs(getAuditLogs());
+            }}
+            onCreatePrescription={(p) => {
+              handleAddPrescription(p);
+              setActiveTab("prescriptions");
+            }}
+            onSendERx={(p) => {
+              const pending = createPendingERx(p.id);
+              setErxRecords(getERxRecords());
+              setTimeout(() => {
+                if (Math.random() < 0.9) {
+                  markERxSent(pending.id);
+                  addAuditEntry({
+                    userId: "test@mindtrack.com",
+                    eventType: "ERX_SENT",
+                    prescriptionId: p.id,
+                    details: "E-Reçete gönderildi (mock)",
+                  });
+                } else {
+                  markERxFailed(pending.id, "PHARM_TIMEOUT", "Eczane yanıt vermedi");
+                  addAuditEntry({
+                    userId: "test@mindtrack.com",
+                    eventType: "ERX_FAILED",
+                    prescriptionId: p.id,
+                    details: "E-Reçete gönderimi başarısız (mock)",
+                  });
+                }
+                setErxRecords(getERxRecords());
+                setAuditLogs(getAuditLogs());
+              }, 800);
+            }}
+          />
+        </div>
+      )}
+
+      {activeTab === "compliance" && (
+        <div className="space-y-4">
+          <CompliancePanel region={region} prescriptions={prescriptions} />
+          <ControlledSubstancesTable prescriptions={prescriptions} />
+          <AuditLogTable logs={auditLogs} />
+        </div>
+      )}
+
+      {activeTab === "interactions" && (
+        <DrugInteractionChecker
+          medications={
+            prescriptions.length > 0
+              ? prescriptions.flatMap((p) => p.medications)
+              : [
+                  { name: "Sertraline" },
+                  { name: "Bupropion" },
+                  { name: "Alprazolam" },
+                  { name: "Paroksetin" },
+                  { name: "Escitalopram" },
+                  { name: "Tramadol" },
+                ]
+          }
         />
       )}
 
-      {activeTab === "compliance" && <CompliancePanel region={region} prescriptions={prescriptions} />}
-
-      {activeTab === "interactions" && (
-        <DrugInteractionChecker medications={prescriptions.flatMap((p) => p.medications)} />
+      {activeTab === "lab" && (
+        <div className="space-y-4">
+          <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
+            Lab Tracking Sprint 3’te aktif olacak. Şimdilik mock tabloyu görüntülüyorsunuz.
+          </div>
+          <LabTrackingTab labResults={mockLabResults} />
+        </div>
       )}
 
-      {activeTab === "lab" && <LabTrackingTab labResults={mockLabResults} />}
-
-      {activeTab === "sideEffects" && <SideEffectsTab sideEffects={mockSideEffects} />}
+      {activeTab === "sideEffects" && (
+        <div className="space-y-4">
+          <div className="p-4 border rounded-md bg-muted/40 text-sm text-gray-700">
+            Yan Etkiler modülü Sprint 3’te tamamlanacak. Şimdilik mock tabloyu görüntülüyorsunuz.
+          </div>
+          <SideEffectsTab sideEffects={mockSideEffects} />
+        </div>
+      )}
 
       {activeTab === "e-prescribing" && <EPrescribingDetails region={region} />}
 
