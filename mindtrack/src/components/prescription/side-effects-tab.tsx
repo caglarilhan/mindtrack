@@ -30,6 +30,7 @@ export function SideEffectsTab({ sideEffects }: Props) {
   const [patientId, setPatientId] = React.useState("");
   const [filterSeverity, setFilterSeverity] = React.useState<SideEffectEntry["severity"] | "all">("all");
   const [search, setSearch] = React.useState("");
+  const [sortDesc, setSortDesc] = React.useState(true);
 
   const criticalList = React.useMemo(
     () => list.filter((s) => s.severity === "severe"),
@@ -57,12 +58,17 @@ export function SideEffectsTab({ sideEffects }: Props) {
     setSeverity("mild");
   };
 
-  const filtered = list.filter((s) => {
-    const matchSeverity = filterSeverity === "all" ? true : s.severity === filterSeverity;
-    const text = `${s.drugName} ${s.sideEffectName}`.toLowerCase();
-    const matchSearch = text.includes(search.toLowerCase());
-    return matchSeverity && matchSearch;
-  });
+  const filtered = list
+    .filter((s) => {
+      const matchSeverity = filterSeverity === "all" ? true : s.severity === filterSeverity;
+      const text = `${s.drugName} ${s.sideEffectName}`.toLowerCase();
+      const matchSearch = text.includes(search.toLowerCase());
+      return matchSeverity && matchSearch;
+    })
+    .sort((a, b) => {
+      const diff = new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime();
+      return sortDesc ? diff * -1 : diff;
+    });
 
   return (
     <div className="space-y-4">
@@ -144,8 +150,10 @@ export function SideEffectsTab({ sideEffects }: Props) {
                 <TableHead>İlaç</TableHead>
                 <TableHead>Yan Etki</TableHead>
                 <TableHead>Şiddet</TableHead>
-                <TableHead>İlk</TableHead>
-                <TableHead>Son</TableHead>
+              <TableHead>İlk</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => setSortDesc((p) => !p)}>
+                Son {sortDesc ? "↓" : "↑"}
+              </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

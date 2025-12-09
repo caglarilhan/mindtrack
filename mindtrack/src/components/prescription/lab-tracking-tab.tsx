@@ -24,13 +24,19 @@ const riskColor: Record<LabResult["riskLevel"], string> = {
 export function LabTrackingTab({ labResults }: Props) {
   const [riskFilter, setRiskFilter] = React.useState<LabResult["riskLevel"] | "all">("all");
   const [search, setSearch] = React.useState("");
+  const [sortDesc, setSortDesc] = React.useState(true);
 
-  const filtered = labResults.filter((r) => {
-    const matchRisk = riskFilter === "all" ? true : r.riskLevel === riskFilter;
-    const text = `${r.patientId} ${r.testType}`.toLowerCase();
-    const matchSearch = text.includes(search.toLowerCase());
-    return matchRisk && matchSearch;
-  });
+  const filtered = labResults
+    .filter((r) => {
+      const matchRisk = riskFilter === "all" ? true : r.riskLevel === riskFilter;
+      const text = `${r.patientId} ${r.testType}`.toLowerCase();
+      const matchSearch = text.includes(search.toLowerCase());
+      return matchRisk && matchSearch;
+    })
+    .sort((a, b) => {
+      const diff = new Date(a.resultDate).getTime() - new Date(b.resultDate).getTime();
+      return sortDesc ? diff * -1 : diff;
+    });
 
   const criticalList = React.useMemo(
     () => filtered.filter((r) => r.riskLevel === "critical"),
@@ -82,7 +88,9 @@ export function LabTrackingTab({ labResults }: Props) {
               <TableHead>Hasta</TableHead>
               <TableHead>Test</TableHead>
               <TableHead>Değer</TableHead>
-              <TableHead>Tarih</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => setSortDesc((p) => !p)}>
+                Tarih {sortDesc ? "↓" : "↑"}
+              </TableHead>
               <TableHead>Risk</TableHead>
             </TableRow>
           </TableHeader>

@@ -17,12 +17,17 @@ interface Props {
 
 export function PrescriptionTemplates({ region, onSelect }: Props) {
   const [templates, setTemplates] = React.useState<PrescriptionTemplate[]>(() => getTemplates(region));
+  const [search, setSearch] = React.useState("");
   const [name, setName] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [medications, setMedications] = React.useState<
     { name: string; dose?: string; freq: string }[]
   >([{ name: "", dose: "", freq: "qd" }]);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setTemplates(getTemplates(region));
+  }, [region]);
 
   const handleSave = () => {
     if (!name || medications.some((m) => !m.name)) {
@@ -75,10 +80,28 @@ export function PrescriptionTemplates({ region, onSelect }: Props) {
     setMedications((prev) => [...prev, { name: "", dose: "", freq: "qd" }]);
   };
 
+  const filtered = React.useMemo(() => {
+    const term = search.toLowerCase();
+    return templates.filter((tpl) => {
+      if (!term) return true;
+      const inName = tpl.name.toLowerCase().includes(term);
+      const inMeds = tpl.medications.some((m) => m.name.toLowerCase().includes(term));
+      return inName || inMeds;
+    });
+  }, [templates, search]);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Reçete Şablonları</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Reçete Şablonları</CardTitle>
+          <Input
+            placeholder="Şablon / ilaç ara..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 w-56"
+          />
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -119,7 +142,7 @@ export function PrescriptionTemplates({ region, onSelect }: Props) {
         </div>
 
         <div className="space-y-2">
-          {templates.map((tpl) => (
+          {filtered.map((tpl) => (
             <div
               key={tpl.id}
               className="p-3 border rounded-lg flex items-start justify-between gap-3 bg-muted/30 hover:bg-muted cursor-pointer"
@@ -132,10 +155,10 @@ export function PrescriptionTemplates({ region, onSelect }: Props) {
                 </div>
                 <div className="text-sm text-gray-700">
                   {tpl.medications.map((m, idx) => (
-                    <span key={idx} className="mr-2">
+                    <Badge key={idx} variant="secondary" className="mr-1">
                       {m.name}
                       {m.doseMg ? ` ${m.doseMg}mg` : ""} {m.frequency ? `(${m.frequency})` : ""}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
                 {tpl.notes && <div className="text-xs text-gray-600">{tpl.notes}</div>}
@@ -164,8 +187,8 @@ export function PrescriptionTemplates({ region, onSelect }: Props) {
               </div>
             </div>
           ))}
-          {templates.length === 0 && (
-            <div className="text-sm text-gray-500">Bu bölge için şablon yok.</div>
+          {filtered.length === 0 && (
+            <div className="text-sm text-gray-500">Bu bölge / arama için şablon yok.</div>
           )}
         </div>
       </CardContent>
