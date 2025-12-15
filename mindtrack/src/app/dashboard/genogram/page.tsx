@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, Wand2, Sparkles, Shuffle } from "lucide-react";
+import { Loader2, Wand2, Sparkles, Shuffle, ImageDown, Upload as UploadIcon } from "lucide-react";
 import ReactFlow, { Background, Controls, MiniMap, Node, Edge, BackgroundVariant } from "reactflow";
 import "reactflow/dist/style.css";
+import { toPng } from "html-to-image";
 
 type Gender = "male" | "female";
 type RelationType =
@@ -58,6 +59,9 @@ export default function GenogramPage() {
   // LLM parse state (mock)
   const [extractedPeople, setExtractedPeople] = useState<PersonNode[]>([]);
   const [extractedRelations, setExtractedRelations] = useState<RelationshipEdge[]>([]);
+  // export/import refs
+  const flowWrapperRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Simple auto layout (grid)
   const applyLayout = useCallback((people: PersonNode[]): PersonNode[] => {
@@ -271,6 +275,66 @@ export default function GenogramPage() {
             JSON Dışa Aktar
           </Button>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          onClick={async () => {
+            if (!flowWrapperRef.current) return;
+            try {
+              const dataUrl = await toPng(flowWrapperRef.current, {
+                cacheBust: true,
+                pixelRatio: 2,
+                backgroundColor: "#f8fafc",
+              });
+              const a = document.createElement("a");
+              a.href = dataUrl;
+              a.download = "genogram.png";
+              a.click();
+            } catch (err) {
+              console.error("PNG export failed", err);
+            }
+          }}
+        >
+          <ImageDown className="h-4 w-4 mr-2" />
+          PNG Dışa Aktar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            fileInputRef.current?.click();
+          }}
+        >
+          <UploadIcon className="h-4 w-4 mr-2" />
+          JSON Yükle
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const parsed = JSON.parse(String(reader.result));
+                if (parsed.nodes && parsed.edges) {
+                  setNodes(parsed.nodes);
+                  setEdges(parsed.edges);
+                } else {
+                  alert("Geçersiz JSON");
+                }
+              } catch (err) {
+                console.error(err);
+                alert("JSON okunamadı");
+              }
+            };
+            reader.readAsText(file);
+          }}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -491,7 +555,10 @@ export default function GenogramPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[640px]">
-            <div className="w-full h-full border rounded-xl overflow-hidden">
+            <div
+              className="w-full h-full border rounded-xl overflow-hidden"
+              ref={flowWrapperRef}
+            >
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
