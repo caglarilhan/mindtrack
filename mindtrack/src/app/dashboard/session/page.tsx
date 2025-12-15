@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Mic, Square, Copy, Sparkles, Timer } from "lucide-react";
+import { Mic, Square, Copy, Sparkles, Timer, ShieldAlert, Trash2 } from "lucide-react";
 
 const loremStream = [
   "Hasta son haftalarda uykuya dalmakta zorlandığını belirtiyor.",
@@ -20,24 +20,35 @@ export default function SessionPage() {
   const [elapsed, setElapsed] = useState(0);
   const [recording, setRecording] = useState(false);
   const [transcripts, setTranscripts] = useState<string[]>([]);
+  const [risks, setRisks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"s" | "o" | "a" | "p">("s");
 
   // Timer
   useEffect(() => {
-    const timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    let timer: NodeJS.Timeout | null = null;
+    if (recording) {
+      timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [recording]);
 
   // Mock live transcript stream
   useEffect(() => {
+    if (!recording) return;
     const interval = setInterval(() => {
       setTranscripts((prev) => {
         const nextLine = loremStream[prev.length % loremStream.length];
+        // simple risk flag
+        if (nextLine.toLowerCase().includes("kaygı") || nextLine.toLowerCase().includes("zorlandığını")) {
+          setRisks((r) => [...r, nextLine]);
+        }
         return [...prev, nextLine];
       });
-    }, 2500);
+    }, 2200);
     return () => clearInterval(interval);
-  }, []);
+  }, [recording]);
 
   const formatTime = (seconds: number) => {
     const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -45,24 +56,34 @@ export default function SessionPage() {
     return `${mm}:${ss}`;
   };
 
-  const handleCopy = (tab: string) => {
-    const text = aiDrafts[tab] || "";
-    navigator.clipboard.writeText(text).catch(() => {});
-  };
-
-  const handleAIDraft = (tab: string) => {
-    // Mock AI edit
-    aiDrafts[tab] = `AI güncelledi: ${aiDrafts[tab]}`;
-    setDraftVersion((v) => v + 1);
-  };
-
-  const [draftVersion, setDraftVersion] = useState(0);
-  const aiDrafts: Record<string, string> = {
+  const [drafts, setDrafts] = useState<Record<"s" | "o" | "a" | "p", string>>({
     s: "Hasta yoğun kaygı ve uyku güçlüğü bildiriyor.",
     o: "Görünüm düzenli, göz teması yeterli, konuşma hızı normal.",
     a: "Yaygın Anksiyete Bozukluğu olasılığı; uyku hijyeni bozulmuş.",
     p: "CBT odaklı seanslar, günlük nefes egzersizi, uyku hijyeni eğitimi.",
+  });
+
+  const handleCopy = (tab: "s" | "o" | "a" | "p") => {
+    const text = drafts[tab] || "";
+    navigator.clipboard.writeText(text).catch(() => {});
   };
+
+  const handleAIDraft = (tab: "s" | "o" | "a" | "p") => {
+    setDrafts((prev) => ({
+      ...prev,
+      [tab]: `AI güncelledi: ${prev[tab]}`,
+    }));
+  };
+
+  const riskBadge = useMemo(() => {
+    if (risks.length === 0) return null;
+    return (
+      <div className="flex items-center gap-2 text-sm text-red-600">
+        <ShieldAlert className="h-4 w-4" />
+        {risks.length} riskli ifade tespit edildi
+      </div>
+    );
+  }, [risks]);
 
   return (
     <div className="p-6 space-y-6">
@@ -89,8 +110,23 @@ export default function SessionPage() {
                 {recording ? "Kaydı Durdur" : "Ses Kaydını Başlat"}
               </Button>
             </div>
+            <div className="flex justify-between items-center text-xs text-slate-500">
+              <span>Canlı Transkript</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-500"
+                onClick={() => {
+                  setTranscripts([]);
+                  setRisks([]);
+                }}
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Temizle
+              </Button>
+            </div>
+            {riskBadge}
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Canlı Transkript</p>
               <div className="border rounded-lg h-72 bg-slate-50">
                 <ScrollArea className="h-full p-3">
                   <div className="space-y-2 text-sm text-slate-700">
@@ -122,17 +158,17 @@ export default function SessionPage() {
               {(["s", "o", "a", "p"] as const).map((tabKey) => (
                 <TabsContent key={tabKey} value={tabKey} className="space-y-3">
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleAIDraft(tabKey)}>
+                      <Button variant="outline" size="sm" onClick={() => handleAIDraft(tabKey)}>
                       <Sparkles className="h-4 w-4 mr-1" />
                       AI ile Düzenle
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleCopy(tabKey)}>
+                      <Button variant="outline" size="sm" onClick={() => handleCopy(tabKey)}>
                       <Copy className="h-4 w-4 mr-1" />
                       Kopyala
                     </Button>
                   </div>
                   <div className="border rounded-lg bg-slate-50 p-3 text-sm text-slate-800 min-h-[140px]">
-                    {aiDrafts[tabKey]}
+                      {drafts[tabKey]}
                   </div>
                 </TabsContent>
               ))}
