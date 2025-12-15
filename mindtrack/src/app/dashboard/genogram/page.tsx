@@ -12,11 +12,20 @@ import ReactFlow, { Background, Controls, MiniMap, Node, Edge, BackgroundVariant
 import "reactflow/dist/style.css";
 
 type Gender = "male" | "female";
+type RelationType =
+  | "married"
+  | "divorced"
+  | "partners"
+  | "parent-child"
+  | "conflict"
+  | "cutoff"
+  | "other";
 
 interface PersonNode {
   id: string;
   label: string;
   gender: Gender;
+  generation: number; // 0=üst kuşak, 1=ebeveyn, 2=çocuk vb.
   position: { x: number; y: number };
 }
 
@@ -25,7 +34,7 @@ interface RelationshipEdge {
   source: string;
   target: string;
   label: string;
-  type?: "default" | "conflict";
+  relationType: RelationType;
 }
 
 const initialNodes: Node[] = [];
@@ -40,19 +49,48 @@ export default function GenogramPage() {
   const [relSource, setRelSource] = useState<string>("");
   const [relTarget, setRelTarget] = useState<string>("");
   const [relLabel, setRelLabel] = useState<string>("İlişki");
-  const [relConflict, setRelConflict] = useState<boolean>(false);
+  const [relType, setRelType] = useState<RelationType>("parent-child");
+
+  // person editor state
+  const [newPersonName, setNewPersonName] = useState<string>("");
+  const [newPersonGender, setNewPersonGender] = useState<Gender>("male");
+  const [newPersonGeneration, setNewPersonGeneration] = useState<number>(1);
+  // LLM parse state (mock)
+  const [extractedPeople, setExtractedPeople] = useState<PersonNode[]>([]);
+  const [extractedRelations, setExtractedRelations] = useState<RelationshipEdge[]>([]);
 
   // Simple auto layout (grid)
   const applyLayout = useCallback((people: PersonNode[]): PersonNode[] => {
     if (people.length === 0) return people;
-    const perRow = Math.max(3, Math.ceil(Math.sqrt(people.length)));
+    const grouped = people.reduce<Record<number, PersonNode[]>>((acc, p) => {
+      acc[p.generation] = acc[p.generation] || [];
+      acc[p.generation].push(p);
+      return acc;
+    }, {});
+
     const gapX = 200;
-    const gapY = 150;
-    return people.map((p, idx) => {
-      const row = Math.floor(idx / perRow);
-      const col = idx % perRow;
-      return { ...p, position: { x: col * gapX + 50, y: row * gapY + 50 } };
+    const gapY = 160;
+    const generations = Object.keys(grouped)
+      .map((g) => Number(g))
+      .sort((a, b) => a - b);
+
+    const placed: PersonNode[] = [];
+    generations.forEach((gen) => {
+      const rowItems = grouped[gen];
+      const perRow = Math.max(3, rowItems.length);
+      rowItems.forEach((p, idx) => {
+        const col = idx % perRow;
+        placed.push({
+          ...p,
+          position: {
+            x: col * gapX + 80,
+            y: gen * gapY + 60,
+          },
+        });
+      });
     });
+
+    return placed;
   }, []);
 
   // Mock parser: simulate AI extraction
@@ -62,67 +100,29 @@ export default function GenogramPage() {
 
     // Basit kural: hikaye içinde "baba", "anne", "oğul", "kız" geçiyorsa kişi oluştur.
     const basePeople: PersonNode[] = [
-      { id: "p1", label: "Ahmet (Baba)", gender: "male", position: { x: 0, y: 0 } },
-      { id: "p2", label: "Ayşe (Anne)", gender: "female", position: { x: 0, y: 0 } },
-      { id: "p3", label: "Mehmet (Oğul)", gender: "male", position: { x: 0, y: 0 } },
-      { id: "p4", label: "Elif (Kız)", gender: "female", position: { x: 0, y: 0 } },
+      { id: "p1", label: "Ahmet (Baba)", gender: "male", generation: 1, position: { x: 0, y: 0 } },
+      { id: "p2", label: "Ayşe (Anne)", gender: "female", generation: 1, position: { x: 0, y: 0 } },
+      { id: "p3", label: "Mehmet (Oğul)", gender: "male", generation: 2, position: { x: 0, y: 0 } },
+      { id: "p4", label: "Elif (Kız)", gender: "female", generation: 2, position: { x: 0, y: 0 } },
     ];
 
     const people = applyLayout(basePeople);
 
     const relations: RelationshipEdge[] = [
-      { id: "e1", source: "p1", target: "p2", label: "Evli", type: "default" },
-      { id: "e2", source: "p1", target: "p3", label: "Baba-Oğul", type: "default" },
-      { id: "e3", source: "p2", target: "p3", label: "Anne-Oğul", type: "default" },
-      { id: "e4", source: "p2", target: "p4", label: "Anne-Kız", type: "default" },
-      { id: "e5", source: "p1", target: "p4", label: "Baba-Kız", type: "default" },
-      { id: "e6", source: "p3", target: "p4", label: "Çatışmalı", type: "conflict" },
+      { id: "e1", source: "p1", target: "p2", label: "Evli", relationType: "married" },
+      { id: "e2", source: "p1", target: "p3", label: "Baba-Oğul", relationType: "parent-child" },
+      { id: "e3", source: "p2", target: "p3", label: "Anne-Oğul", relationType: "parent-child" },
+      { id: "e4", source: "p2", target: "p4", label: "Anne-Kız", relationType: "parent-child" },
+      { id: "e5", source: "p1", target: "p4", label: "Baba-Kız", relationType: "parent-child" },
+      { id: "e6", source: "p3", target: "p4", label: "Çatışmalı", relationType: "conflict" },
     ];
-
-    const flowNodes: Node[] = people.map((p) => ({
-      id: p.id,
-      data: { label: p.label },
-      position: p.position,
-      style: {
-        padding: 12,
-        border: "2px solid",
-        borderColor: p.gender === "male" ? "#2563eb" : "#ec4899",
-        borderRadius: p.gender === "female" ? 20 : 4,
-        background: "#fff",
-        boxShadow: "0 10px 25px -15px rgba(0,0,0,0.35)",
-        minWidth: 120,
-        textAlign: "center",
-        fontWeight: 600,
-      },
-    }));
-
-    const flowEdges: Edge[] = relations.map((r) => ({
-      id: r.id,
-      source: r.source,
-      target: r.target,
-      label: r.label,
-      animated: r.type === "conflict",
-      style: {
-        stroke: r.type === "conflict" ? "#ef4444" : "#94a3b8",
-        strokeWidth: r.type === "conflict" ? 2.5 : 1.5,
-      },
-      labelStyle: {
-        fill: r.type === "conflict" ? "#ef4444" : "#334155",
-        fontWeight: 600,
-        fontSize: 12,
-      },
-      markerEnd: {
-        type: "arrowclosed",
-      },
-    }));
-
-    setNodes(flowNodes);
-    setEdges(flowEdges);
+    setExtractedPeople(people);
+    setExtractedRelations(relations);
     setLoading(false);
     setRelSource("");
     setRelTarget("");
     setRelLabel("İlişki");
-    setRelConflict(false);
+    setRelType("parent-child");
   }, [applyLayout]);
 
   const handleAddRelation = useCallback(() => {
@@ -133,20 +133,28 @@ export default function GenogramPage() {
       source: relSource,
       target: relTarget,
       label: relLabel || "İlişki",
-      animated: relConflict,
+      animated: relType === "conflict",
       style: {
-        stroke: relConflict ? "#ef4444" : "#94a3b8",
-        strokeWidth: relConflict ? 2.5 : 1.5,
+        stroke:
+          relType === "conflict"
+            ? "#ef4444"
+            : relType === "cutoff"
+            ? "#f97316"
+            : relType === "married"
+            ? "#22c55e"
+            : "#94a3b8",
+        strokeWidth: relType === "conflict" ? 2.5 : 1.5,
+        strokeDasharray: relType === "cutoff" ? "6 4" : undefined,
       },
       labelStyle: {
-        fill: relConflict ? "#ef4444" : "#334155",
+        fill: relType === "conflict" ? "#ef4444" : "#334155",
         fontWeight: 600,
         fontSize: 12,
       },
       markerEnd: { type: "arrowclosed" },
     };
     setEdges((prev) => [...prev, newEdge]);
-  }, [relSource, relTarget, relLabel, relConflict]);
+  }, [relSource, relTarget, relLabel, relType]);
 
   const handleAutoLayout = useCallback(() => {
     const people = nodes.map((n) => {
@@ -155,6 +163,7 @@ export default function GenogramPage() {
         id: n.id,
         label: String(n.data?.label || n.id),
         gender,
+        generation: Math.round((n.position.y - 60) / 160) || 1,
         position: { x: 0, y: 0 },
       };
     });
@@ -178,6 +187,60 @@ export default function GenogramPage() {
     setNodes(nextNodes);
   }, [nodes, applyLayout]);
 
+  const applyGraphFromExtracted = useCallback(() => {
+    if (extractedPeople.length === 0) return;
+    const laid = applyLayout(
+      extractedPeople.map((p) => ({ ...p, position: { x: 0, y: 0 } }))
+    );
+    const flowNodes: Node[] = laid.map((p) => ({
+      id: p.id,
+      data: { label: p.label },
+      position: p.position,
+      style: {
+        padding: 12,
+        border: "2px solid",
+        borderColor: p.gender === "male" ? "#2563eb" : "#ec4899",
+        borderRadius: p.gender === "female" ? 20 : 4,
+        background: "#fff",
+        boxShadow: "0 10px 25px -15px rgba(0,0,0,0.35)",
+        minWidth: 120,
+        textAlign: "center",
+        fontWeight: 600,
+      },
+    }));
+
+    const flowEdges: Edge[] = extractedRelations.map((r) => ({
+      id: r.id,
+      source: r.source,
+      target: r.target,
+      label: r.label,
+      animated: r.relationType === "conflict",
+      style: {
+        stroke:
+          r.relationType === "conflict"
+            ? "#ef4444"
+            : r.relationType === "cutoff"
+            ? "#f97316"
+            : r.relationType === "married"
+            ? "#22c55e"
+            : "#94a3b8",
+        strokeWidth: r.relationType === "conflict" ? 2.5 : 1.5,
+        strokeDasharray: r.relationType === "cutoff" ? "6 4" : undefined,
+      },
+      labelStyle: {
+        fill: r.relationType === "conflict" ? "#ef4444" : "#334155",
+        fontWeight: 600,
+        fontSize: 12,
+      },
+      markerEnd: {
+        type: "arrowclosed",
+      },
+    }));
+
+    setNodes(flowNodes);
+    setEdges(flowEdges);
+  }, [extractedPeople, extractedRelations, applyLayout]);
+
   const isStoryEmpty = useMemo(() => story.trim().length < 5, [story]);
 
   return (
@@ -189,6 +252,25 @@ export default function GenogramPage() {
             Hikayeyi yaz, AI aile ağacını otomatik çizsin (mock).
           </p>
         </div>
+        {nodes.length > 0 && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              const payload = { nodes, edges };
+              const blob = new Blob([JSON.stringify(payload, null, 2)], {
+                type: "application/json",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "genogram.json";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            JSON Dışa Aktar
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -278,17 +360,23 @@ export default function GenogramPage() {
                   <div>
                     <Label className="text-xs">İlişki Etiketi</Label>
                     <Input value={relLabel} onChange={(e) => setRelLabel(e.target.value)} />
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        id="conflict"
-                        type="checkbox"
-                        checked={relConflict}
-                        onChange={(e) => setRelConflict(e.target.checked)}
-                      />
-                      <Label htmlFor="conflict" className="text-xs">
-                        Çatışmalı (kırmızı, animasyonlu)
-                      </Label>
-                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">İlişki Tipi</Label>
+                    <Select value={relType} onValueChange={(v) => setRelType(v as RelationType)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="married">Evli</SelectItem>
+                        <SelectItem value="divorced">Boşanmış</SelectItem>
+                        <SelectItem value="partners">Birlikte</SelectItem>
+                        <SelectItem value="parent-child">Ebeveyn-Çocuk</SelectItem>
+                        <SelectItem value="conflict">Çatışmalı</SelectItem>
+                        <SelectItem value="cutoff">Kopuk</SelectItem>
+                        <SelectItem value="other">Diğer</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <Button size="sm" onClick={handleAddRelation} disabled={!relSource || !relTarget}>
@@ -296,6 +384,101 @@ export default function GenogramPage() {
                 </Button>
               </div>
             )}
+
+            {/* Person Editor */}
+            <div className="border rounded-lg p-3 space-y-3 bg-slate-50">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-blue-600" />
+                Kişi Ekle
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs">Ad/Soyad</Label>
+                  <Input
+                    value={newPersonName}
+                    onChange={(e) => setNewPersonName(e.target.value)}
+                    placeholder="Örn: Ali"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Cinsiyet</Label>
+                  <Select
+                    value={newPersonGender}
+                    onValueChange={(v) => setNewPersonGender(v as Gender)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Erkek</SelectItem>
+                      <SelectItem value="female">Kadın</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Kuşak</Label>
+                  <Select
+                    value={String(newPersonGeneration)}
+                    onValueChange={(v) => setNewPersonGeneration(Number(v))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Büyükbaba/Büyükanne</SelectItem>
+                      <SelectItem value="1">Anne/Baba</SelectItem>
+                      <SelectItem value="2">Çocuk</SelectItem>
+                      <SelectItem value="3">Torun</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!newPersonName.trim()) return;
+                  const id = `p-${Date.now()}`;
+                  const next = [
+                    ...nodes.map((n) => ({
+                      id: n.id,
+                      label: String(n.data?.label || n.id),
+                      gender: n.style?.borderColor === "#2563eb" ? "male" : "female",
+                      generation: Math.round((n.position.y - 60) / 160) || 1,
+                      position: { x: n.position.x, y: n.position.y },
+                    })) as PersonNode[],
+                    {
+                      id,
+                      label: newPersonName.trim(),
+                      gender: newPersonGender,
+                      generation: newPersonGeneration,
+                      position: { x: 0, y: 0 },
+                    },
+                  ];
+                  const laid = applyLayout(next);
+                  setNodes(
+                    laid.map((p) => ({
+                      id: p.id,
+                      data: { label: p.label },
+                      position: p.position,
+                      style: {
+                        padding: 12,
+                        border: "2px solid",
+                        borderColor: p.gender === "male" ? "#2563eb" : "#ec4899",
+                        borderRadius: p.gender === "female" ? 20 : 4,
+                        background: "#fff",
+                        boxShadow: "0 10px 25px -15px rgba(0,0,0,0.35)",
+                        minWidth: 120,
+                        textAlign: "center",
+                        fontWeight: 600,
+                      },
+                    }))
+                  );
+                  setNewPersonName("");
+                }}
+              >
+                Kişi Ekle
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -326,6 +509,160 @@ export default function GenogramPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* LLM Extraction Review */}
+      {extractedPeople.length > 0 && (
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>LLM Çıkarımı (Onayla / Düzenle)</CardTitle>
+            <CardDescription>
+              Metinden çıkarılan kişiler ve ilişkiler. Düzenleyip “Onayla ve Çiz” ile canvas’a yansıtın.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border rounded-lg p-3">
+                <p className="text-sm font-semibold mb-2">Kişiler</p>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {extractedPeople.map((p, idx) => (
+                    <div key={p.id} className="border rounded p-2 space-y-2 bg-white">
+                      <Input
+                        value={p.label}
+                        onChange={(e) => {
+                          const next = [...extractedPeople];
+                          next[idx] = { ...p, label: e.target.value };
+                          setExtractedPeople(next);
+                        }}
+                      />
+                      <div className="flex gap-2">
+                        <Select
+                          value={p.gender}
+                          onValueChange={(v) => {
+                            const next = [...extractedPeople];
+                            next[idx] = { ...p, gender: v as Gender };
+                            setExtractedPeople(next);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Erkek</SelectItem>
+                            <SelectItem value="female">Kadın</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={String(p.generation)}
+                          onValueChange={(v) => {
+                            const next = [...extractedPeople];
+                            next[idx] = { ...p, generation: Number(v) };
+                            setExtractedPeople(next);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Büyükanne/Büyükbaba</SelectItem>
+                            <SelectItem value="1">Anne/Baba</SelectItem>
+                            <SelectItem value="2">Çocuk</SelectItem>
+                            <SelectItem value="3">Torun</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-3">
+                <p className="text-sm font-semibold mb-2">İlişkiler</p>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {extractedRelations.map((r, idx) => (
+                    <div key={r.id} className="border rounded p-2 space-y-2 bg-white">
+                      <Input
+                        value={r.label}
+                        onChange={(e) => {
+                          const next = [...extractedRelations];
+                          next[idx] = { ...r, label: e.target.value };
+                          setExtractedRelations(next);
+                        }}
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <Select
+                          value={r.source}
+                          onValueChange={(v) => {
+                            const next = [...extractedRelations];
+                            next[idx] = { ...r, source: v };
+                            setExtractedRelations(next);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Kaynak" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {extractedPeople.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={r.target}
+                          onValueChange={(v) => {
+                            const next = [...extractedRelations];
+                            next[idx] = { ...r, target: v };
+                            setExtractedRelations(next);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Hedef" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {extractedPeople.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={r.relationType}
+                          onValueChange={(v) => {
+                            const next = [...extractedRelations];
+                            next[idx] = { ...r, relationType: v as RelationType };
+                            setExtractedRelations(next);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="married">Evli</SelectItem>
+                            <SelectItem value="divorced">Boşanmış</SelectItem>
+                            <SelectItem value="partners">Birlikte</SelectItem>
+                            <SelectItem value="parent-child">Ebeveyn-Çocuk</SelectItem>
+                            <SelectItem value="conflict">Çatışmalı</SelectItem>
+                            <SelectItem value="cutoff">Kopuk</SelectItem>
+                            <SelectItem value="other">Diğer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={applyGraphFromExtracted} disabled={extractedPeople.length === 0}>
+                Onayla ve Çiz
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
