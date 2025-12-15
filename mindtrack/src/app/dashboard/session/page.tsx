@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Mic, Square, Copy, Sparkles, Timer, ShieldAlert, Trash2 } from "lucide-react";
+import { Mic, Square, Copy, Sparkles, Timer, ShieldAlert, Trash2, Loader2, CheckCircle2 } from "lucide-react";
 
 const loremStream = [
   "Hasta son haftalarda uykuya dalmakta zorlandığını belirtiyor.",
@@ -16,12 +16,29 @@ const loremStream = [
   "Daha önce uygulanan nefes egzersizlerinin kısmen rahatlatıcı olduğunu belirtiyor.",
 ];
 
+const riskKeywords = [
+  "intihar",
+  "kendime zarar",
+  "self-harm",
+  "öldürmek",
+  "ölmek",
+  "panik",
+  "kriz",
+  "şiddet",
+  "kabus",
+  "umutsuz",
+  "kaygı",
+  "çarpıntı",
+];
+
 export default function SessionPage() {
   const [elapsed, setElapsed] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [transcripts, setTranscripts] = useState<string[]>([]);
+  const [transcripts, setTranscripts] = useState<{ text: string; risk: boolean }[]>([]);
   const [risks, setRisks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"s" | "o" | "a" | "p">("s");
+  const [soapLoading, setSoapLoading] = useState(false);
+  const [soapGenerated, setSoapGenerated] = useState(false);
 
   // Timer
   useEffect(() => {
@@ -40,11 +57,11 @@ export default function SessionPage() {
     const interval = setInterval(() => {
       setTranscripts((prev) => {
         const nextLine = loremStream[prev.length % loremStream.length];
-        // simple risk flag
-        if (nextLine.toLowerCase().includes("kaygı") || nextLine.toLowerCase().includes("zorlandığını")) {
+        const isRisk = riskKeywords.some((kw) => nextLine.toLowerCase().includes(kw));
+        if (isRisk) {
           setRisks((r) => [...r, nextLine]);
         }
-        return [...prev, nextLine];
+        return [...prev, { text: nextLine, risk: isRisk }];
       });
     }, 2200);
     return () => clearInterval(interval);
@@ -85,6 +102,21 @@ export default function SessionPage() {
     );
   }, [risks]);
 
+  const generateSoap = async () => {
+    setSoapLoading(true);
+    setSoapGenerated(false);
+    // Mock AI SOAP generation using transcripts
+    await new Promise((res) => setTimeout(res, 2000));
+    setDrafts({
+      s: "Hasta yoğun kaygı, uyku güçlüğü ve çarpıntı bildirdi.",
+      o: "Göz teması yeterli, konuşma hızı normal, afekt kaygılı.",
+      a: "Olası GAD; uyku hijyeni bozulmuş; riskli ifadeler gözlendi.",
+      p: "CBT seansları, günlük nefes egzersizi, uyku hijyeni; risk takibi ve gerekirse psikiyatri konsültasyonu.",
+    });
+    setSoapLoading(false);
+    setSoapGenerated(true);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-3xl font-bold">Seans Asistanı</h1>
@@ -119,6 +151,7 @@ export default function SessionPage() {
                 onClick={() => {
                   setTranscripts([]);
                   setRisks([]);
+                  setSoapGenerated(false);
                 }}
               >
                 <Trash2 className="h-3 w-3 mr-1" />
@@ -131,8 +164,11 @@ export default function SessionPage() {
                 <ScrollArea className="h-full p-3">
                   <div className="space-y-2 text-sm text-slate-700">
                     {transcripts.map((line, idx) => (
-                      <div key={idx} className="leading-relaxed">
-                        {line}
+                      <div
+                        key={idx}
+                        className={`leading-relaxed ${line.risk ? "text-red-600 font-semibold" : ""}`}
+                      >
+                        {line.text}
                       </div>
                     ))}
                   </div>
@@ -145,7 +181,19 @@ export default function SessionPage() {
         {/* Right - AI SOAP Notes */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>AI Notları (SOAP)</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>AI Notları (SOAP)</CardTitle>
+              <Button size="sm" onClick={generateSoap} disabled={soapLoading}>
+                {soapLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    AI Oluşturuyor...
+                  </>
+                ) : (
+                  "Seansı Bitir ve AI SOAP Oluştur"
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
@@ -173,6 +221,12 @@ export default function SessionPage() {
                 </TabsContent>
               ))}
             </Tabs>
+            {soapGenerated && (
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <CheckCircle2 className="h-4 w-4" />
+                AI taslakları hazır. İnceleyip kopyalayabilirsiniz.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
