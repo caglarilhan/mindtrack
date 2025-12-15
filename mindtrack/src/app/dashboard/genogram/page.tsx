@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, Wand2, Sparkles, Shuffle, ImageDown, Upload as UploadIcon } from "lucide-react";
+import { Loader2, Wand2, Sparkles, Shuffle, ImageDown, Upload as UploadIcon, Info } from "lucide-react";
 import ReactFlow, { Background, Controls, MiniMap, Node, Edge, BackgroundVariant } from "reactflow";
 import "reactflow/dist/style.css";
 import { toPng } from "html-to-image";
@@ -62,6 +62,53 @@ export default function GenogramPage() {
   // export/import refs
   const flowWrapperRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const buildNode = useCallback((p: PersonNode): Node => {
+    return {
+      id: p.id,
+      data: { label: p.label, gender: p.gender, generation: p.generation },
+      position: p.position,
+      style: {
+        padding: 12,
+        border: "2px solid",
+        borderColor: p.gender === "male" ? "#2563eb" : "#ec4899",
+        borderRadius: p.gender === "female" ? 20 : 4,
+        background: "#fff",
+        boxShadow: "0 10px 25px -15px rgba(0,0,0,0.35)",
+        minWidth: 120,
+        textAlign: "center",
+        fontWeight: 600,
+      },
+    };
+  }, []);
+
+  const buildEdge = useCallback((r: RelationshipEdge): Edge => {
+    return {
+      id: r.id,
+      source: r.source,
+      target: r.target,
+      label: r.label,
+      animated: r.relationType === "conflict",
+      style: {
+        stroke:
+          r.relationType === "conflict"
+            ? "#ef4444"
+            : r.relationType === "cutoff"
+            ? "#f97316"
+            : r.relationType === "married"
+            ? "#22c55e"
+            : "#94a3b8",
+        strokeWidth: r.relationType === "conflict" ? 2.5 : 1.5,
+        strokeDasharray: r.relationType === "cutoff" ? "6 4" : undefined,
+      },
+      labelStyle: {
+        fill: r.relationType === "conflict" ? "#ef4444" : "#334155",
+        fontWeight: 600,
+        fontSize: 12,
+      },
+      markerEnd: { type: "arrowclosed" },
+    };
+  }, []);
 
   // Simple auto layout (grid)
   const applyLayout = useCallback((people: PersonNode[]): PersonNode[] => {
@@ -196,54 +243,12 @@ export default function GenogramPage() {
     const laid = applyLayout(
       extractedPeople.map((p) => ({ ...p, position: { x: 0, y: 0 } }))
     );
-    const flowNodes: Node[] = laid.map((p) => ({
-      id: p.id,
-      data: { label: p.label },
-      position: p.position,
-      style: {
-        padding: 12,
-        border: "2px solid",
-        borderColor: p.gender === "male" ? "#2563eb" : "#ec4899",
-        borderRadius: p.gender === "female" ? 20 : 4,
-        background: "#fff",
-        boxShadow: "0 10px 25px -15px rgba(0,0,0,0.35)",
-        minWidth: 120,
-        textAlign: "center",
-        fontWeight: 600,
-      },
-    }));
-
-    const flowEdges: Edge[] = extractedRelations.map((r) => ({
-      id: r.id,
-      source: r.source,
-      target: r.target,
-      label: r.label,
-      animated: r.relationType === "conflict",
-      style: {
-        stroke:
-          r.relationType === "conflict"
-            ? "#ef4444"
-            : r.relationType === "cutoff"
-            ? "#f97316"
-            : r.relationType === "married"
-            ? "#22c55e"
-            : "#94a3b8",
-        strokeWidth: r.relationType === "conflict" ? 2.5 : 1.5,
-        strokeDasharray: r.relationType === "cutoff" ? "6 4" : undefined,
-      },
-      labelStyle: {
-        fill: r.relationType === "conflict" ? "#ef4444" : "#334155",
-        fontWeight: 600,
-        fontSize: 12,
-      },
-      markerEnd: {
-        type: "arrowclosed",
-      },
-    }));
+    const flowNodes: Node[] = laid.map(buildNode);
+    const flowEdges: Edge[] = extractedRelations.map(buildEdge);
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [extractedPeople, extractedRelations, applyLayout]);
+  }, [extractedPeople, extractedRelations, applyLayout, buildNode, buildEdge]);
 
   const isStoryEmpty = useMemo(() => story.trim().length < 5, [story]);
 
@@ -321,9 +326,50 @@ export default function GenogramPage() {
             reader.onload = () => {
               try {
                 const parsed = JSON.parse(String(reader.result));
-                if (parsed.nodes && parsed.edges) {
-                  setNodes(parsed.nodes);
-                  setEdges(parsed.edges);
+                // Yeni format: { people, relations }
+                if (parsed.people && parsed.relations) {
+                  const laid = applyLayout(
+                    (parsed.people as PersonNode[]).map((p) => ({
+                      ...p,
+                      position: p.position || { x: 0, y: 0 },
+                    }))
+                  );
+                  setNodes(laid.map(buildNode));
+                  setEdges((parsed.relations as RelationshipEdge[]).map(buildEdge));
+                } else if (parsed.nodes && parsed.edges) {
+                  // Eski format: raw reactflow nodes/edges (infer gender/generation best-effort)
+                  const inferredPeople: PersonNode[] = (parsed.nodes as Node[]).map((n) => ({
+                    id: n.id,
+                    label: String(n.data?.label || n.id),
+                    gender:
+                      (n.data as any)?.gender ||
+                      (n.style?.borderColor === "#2563eb" ? "male" : "female"),
+                    generation:
+                      (n.data as any)?.generation !== undefined
+                        ? (n.data as any).generation
+                        : Math.round((n.position.y - 60) / 160) || 1,
+                    position: n.position || { x: 0, y: 0 },
+                  }));
+                  const laid = applyLayout(inferredPeople);
+                  setNodes(laid.map(buildNode));
+                  setEdges((parsed.edges as any[]).map((e) => {
+                    const relationType: RelationType =
+                      e.relationType ||
+                      (e.style?.stroke === "#22c55e"
+                        ? "married"
+                        : e.style?.stroke === "#ef4444"
+                        ? "conflict"
+                        : e.style?.stroke === "#f97316"
+                        ? "cutoff"
+                        : "other");
+                    return buildEdge({
+                      id: e.id,
+                      source: e.source,
+                      target: e.target,
+                      label: e.label,
+                      relationType,
+                    });
+                  }));
                 } else {
                   alert("Geçersiz JSON");
                 }
@@ -505,9 +551,12 @@ export default function GenogramPage() {
                   const next = [
                     ...nodes.map((n) => ({
                       id: n.id,
-                      label: String(n.data?.label || n.id),
-                      gender: n.style?.borderColor === "#2563eb" ? "male" : "female",
-                      generation: Math.round((n.position.y - 60) / 160) || 1,
+          label: String(n.data?.label || n.id),
+          gender: (n.data as any)?.gender || (n.style?.borderColor === "#2563eb" ? "male" : "female"),
+          generation:
+            (n.data as any)?.generation !== undefined
+              ? (n.data as any).generation
+              : Math.round((n.position.y - 60) / 160) || 1,
                       position: { x: n.position.x, y: n.position.y },
                     })) as PersonNode[],
                     {
