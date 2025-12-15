@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Mic, Square, Copy, Sparkles, Timer, ShieldAlert, Trash2, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Mic,
+  Square,
+  Copy,
+  Sparkles,
+  Timer,
+  ShieldAlert,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  Upload,
+  Download,
+} from "lucide-react";
 
 const loremStream = [
   "Hasta son haftalarda uykuya dalmakta zorlandığını belirtiyor.",
@@ -39,6 +51,7 @@ export default function SessionPage() {
   const [activeTab, setActiveTab] = useState<"s" | "o" | "a" | "p">("s");
   const [soapLoading, setSoapLoading] = useState(false);
   const [soapGenerated, setSoapGenerated] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Timer
   useEffect(() => {
@@ -117,6 +130,45 @@ export default function SessionPage() {
     setSoapGenerated(true);
   };
 
+  const handleAudioUpload = async (file: File) => {
+    // In real app: send to /api/telehealth/transcripts with AssemblyAI/Whisper
+    setUploading(true);
+    setTranscripts([]);
+    setRisks([]);
+    // Mock delay and fill with lorem
+    await new Promise((res) => setTimeout(res, 2000));
+    const mockLines = [
+      "Son günlerde panik atak benzeri çarpıntı ve nefes darlığı yaşadım.",
+      "Uykusuzluk nedeniyle işe odaklanmakta zorlanıyorum.",
+      "Bazen umutsuz hissediyorum ama kendime zarar verme niyetim yok.",
+    ];
+    const newTranscripts = mockLines.map((line) => {
+      const isRisk = riskKeywords.some((kw) => line.toLowerCase().includes(kw));
+      if (isRisk) setRisks((r) => [...r, line]);
+      return { text: line, risk: isRisk };
+    });
+    setTranscripts(newTranscripts);
+    setUploading(false);
+  };
+
+  const handleSaveJson = () => {
+    const payload = {
+      elapsed,
+      recording,
+      transcripts,
+      risks,
+      drafts,
+      soapGenerated,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `session-notes-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-3xl font-bold">Seans Asistanı</h1>
@@ -175,6 +227,19 @@ export default function SessionPage() {
                 </ScrollArea>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold">Ses dosyası yükle (mock):</label>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAudioUpload(file);
+                }}
+                disabled={uploading}
+              />
+              {uploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+            </div>
           </CardContent>
         </Card>
 
@@ -196,6 +261,16 @@ export default function SessionPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Transkript satırları: {transcripts.length}</span>
+              <span>|</span>
+              <span>Risk tespiti: {risks.length}</span>
+              <span>|</span>
+              <Button variant="ghost" size="sm" onClick={handleSaveJson}>
+                <Download className="h-4 w-4 mr-1" />
+                JSON Kaydet
+              </Button>
+            </div>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
               <TabsList className="grid grid-cols-4">
                 <TabsTrigger value="s">S (Subjective)</TabsTrigger>
