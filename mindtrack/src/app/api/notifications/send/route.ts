@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabaseClient';
 import webpush from 'web-push';
 
-// Configure web-push
-webpush.setVapidDetails(
-  process.env.NEXT_PUBLIC_VAPID_SUBJECT || 'mailto:admin@mindtrack.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
-  process.env.VAPID_PRIVATE_KEY || ''
-);
-
 export async function POST(request: NextRequest) {
   try {
+    const vapidSubject = process.env.NEXT_PUBLIC_VAPID_SUBJECT || 'mailto:admin@mindtrack.com';
+    const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+
+    if (!vapidPublic || !vapidPrivate) {
+      return NextResponse.json({ error: 'Push notifications not configured (VAPID keys missing)' }, { status: 500 });
+    }
+
+    webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {

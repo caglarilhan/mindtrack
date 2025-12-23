@@ -1,5 +1,4 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 
 export const createSupabaseBrowserClient = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,6 +11,9 @@ export const createSupabaseBrowserClient = () => {
   return createBrowserClient(url, anonKey);
 };
 
+// Alias for easier import
+export const createClient = createSupabaseBrowserClient;
+
 export const createSupabaseServerClient = async () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,6 +22,9 @@ export const createSupabaseServerClient = async () => {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
+  // Import next/headers only at runtime inside the server function to avoid
+  // bundling server-only modules in client components that import this file.
+  const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
 
   return createServerClient(url, anonKey, {

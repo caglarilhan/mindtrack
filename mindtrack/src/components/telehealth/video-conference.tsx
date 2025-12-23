@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useTelehealthSafety } from "@/hooks/useTelehealthSafety";
 import { 
   Video, 
   VideoOff, 
@@ -80,6 +82,9 @@ export function VideoConference() {
   const [isLocked, setIsLocked] = useState(false);
   const [isWaitingRoom, setIsWaitingRoom] = useState(true);
   const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor'>('excellent');
+  const [sessionId, setSessionId] = useState('demo-session');
+  const [ingestText, setIngestText] = useState('');
+  const [ingesting, setIngesting] = useState(false);
 
   // Participants and chat state
   const [participants, setParticipants] = useState<Participant[]>([
@@ -162,6 +167,9 @@ export function VideoConference() {
     console.log(`Screen sharing ${!isScreenSharing ? 'started' : 'stopped'}`);
   };
 
+  const { transcripts, riskEvents, riskBadges, riskCriticalCount, ingestTranscripts, saveRecording, refresh, loading, error } =
+    useTelehealthSafety({ sessionId, pollMs: 5000 });
+
   /**
    * Recording toggle function - Meeting recording'i başlatır/durdurur
    * Bu fonksiyon ne işe yarar:
@@ -169,10 +177,23 @@ export function VideoConference() {
    * - Recording status'u günceller
    * - Recording indicator'ı gösterir
    */
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    // Recording logic burada implement edilebilir
-    console.log(`Recording ${!isRecording ? 'started' : 'stopped'}`);
+  const toggleRecording = async () => {
+    const next = !isRecording;
+    setIsRecording(next);
+    if (next) {
+      // Demo metadata kaydı
+      try {
+        await saveRecording({
+          recordingUrl: `s3://telehealth-recordings/${sessionId}/recording-${Date.now()}.mp4`,
+          duration: 0,
+          fileSize: 0,
+          quality: "HD",
+          storageLocation: "s3",
+        });
+      } catch (e) {
+        console.error("Recording save failed", e);
+      }
+    }
   };
 
   /**
@@ -359,7 +380,7 @@ export function VideoConference() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700">
+        <div className="w-96 bg-gray-800 border-l border-gray-700">
           <div className="p-4">
             {/* Participants */}
             <div className="mb-6">
@@ -469,6 +490,89 @@ export function VideoConference() {
                 </div>
               </div>
             )}
+
+            {/* Safety & Transcript */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Safety & Transcript
+              </h3>
+              <p className="text-xs text-gray-400 mb-3">Risk ticker ve transcript akışı</p>
+
+              <div className="space-y-2 mb-3">
+                <label className="text-xs text-gray-400">Session ID</label>
+                <Input value={sessionId} onChange={(e) => setSessionId(e.target.value)} />
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap text-sm mb-3">
+                <Badge variant="outline" className="border-orange-500 text-orange-400">
+                  Risk kritik: {riskCriticalCount}
+                </Badge>
+                {riskBadges.map((b) => (
+                  <Badge key={b.category} variant="secondary" className="bg-gray-800 text-gray-100">
+                    {b.category}: {b.count}
+                  </Badge>
+                ))}
+              </div>
+
+              {loading && <div className="text-xs text-gray-400 mb-2">Yükleniyor...</div>}
+              {error && <div className="text-xs text-red-400 mb-2">{error}</div>}
+
+              <div className="mb-3">
+                <div className="text-xs text-gray-400 mb-1">Transcript (son 5)</div>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {transcripts?.slice(-5).map((t: any) => (
+                    <div key={t.id || t.start_time} className="text-xs text-gray-200">
+                      <span className="text-gray-400">[{t.speaker}]</span> {t.snippet}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <div className="text-xs text-gray-400 mb-1">Risk feed (son 5)</div>
+                <div className="space-y-1 max-h-28 overflow-y-auto">
+                  {(riskEvents || []).slice(-5).map((r: any, idx: number) => (
+                    <div key={r.id || idx} className="text-xs text-orange-300">
+                      <span className="text-gray-400">{r.category}</span> · {r.message || r.transcript_excerpt}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Hızlı risk testi için metni yapıştır (worker ingest)"
+                  value={ingestText}
+                  onChange={(e) => setIngestText(e.target.value)}
+                  className="bg-gray-800 border-gray-700 text-gray-100"
+                  rows={3}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!ingestText || ingesting}
+                    onClick={async () => {
+                      try {
+                        setIngesting(true);
+                        await ingestTranscripts([{ speaker: "patient", text: ingestText }]);
+                        setIngestText("");
+                      } catch (e) {
+                        console.error(e);
+                      } finally {
+                        setIngesting(false);
+                      }
+                    }}
+                  >
+                    {ingesting ? "İşleniyor..." : "Metni işle"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={refresh}>
+                    Yenile
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

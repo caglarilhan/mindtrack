@@ -6,7 +6,7 @@ export const locales = ['en', 'es', 'tr', 'de'] as const;
 export type Locale = typeof locales[number];
 
 // Default language - American English
-export const defaultLocale: Locale = 'en';
+export const defaultLocale: Locale = 'tr';
 
 // Language information
 export const localeInfo = {

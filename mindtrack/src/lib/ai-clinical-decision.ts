@@ -1,5 +1,45 @@
 import * as tf from '@tensorflow/tfjs';
-import natural from 'natural';
+// Minimal Jaro-Winkler benzeri benzerlik (natural paketine bağımlılığı kaldırır)
+function jaroWinklerLike(a: string, b: string): number {
+  if (a === b) return 1;
+  const s1 = a.toLowerCase();
+  const s2 = b.toLowerCase();
+  const maxDist = Math.floor(Math.max(s1.length, s2.length) / 2) - 1;
+  const matchFlags1 = new Array(s1.length).fill(false);
+  const matchFlags2 = new Array(s2.length).fill(false);
+  let matches = 0;
+  for (let i = 0; i < s1.length; i++) {
+    const start = Math.max(0, i - maxDist);
+    const end = Math.min(i + maxDist + 1, s2.length);
+    for (let j = start; j < end; j++) {
+      if (!matchFlags2[j] && s1[i] === s2[j]) {
+        matchFlags1[i] = true;
+        matchFlags2[j] = true;
+        matches++;
+        break;
+      }
+    }
+  }
+  if (matches === 0) return 0;
+  let k = 0;
+  let transpositions = 0;
+  for (let i = 0; i < s1.length; i++) {
+    if (matchFlags1[i]) {
+      while (!matchFlags2[k]) k++;
+      if (s1[i] !== s2[k]) transpositions++;
+      k++;
+    }
+  }
+  const m = matches;
+  const jaro = (m / s1.length + m / s2.length + (m - transpositions / 2) / m) / 3;
+  // Winkler boost (prefix)
+  let prefix = 0;
+  for (let i = 0; i < Math.min(4, s1.length, s2.length); i++) {
+    if (s1[i] === s2[i]) prefix++;
+    else break;
+  }
+  return jaro + prefix * 0.1 * (1 - jaro);
+}
 import sentiment from 'sentiment';
 
 // AI Clinical Decision Support System
@@ -165,7 +205,7 @@ export class AIClinicalDecisionSupport {
     for (const [code, diagnosis] of Object.entries(DSM5_DIAGNOSES)) {
       const matchingSymptoms = diagnosis.symptoms.filter(symptom => 
         patient.symptoms.some(s => 
-          natural.JaroWinklerDistance(s.name.toLowerCase(), symptom.toLowerCase()) > 0.7
+          jaroWinklerLike(s.name, symptom) > 0.7
         )
       );
 
@@ -266,7 +306,7 @@ export class AIClinicalDecisionSupport {
 
     const suicideFactors = patient.riskFactors.filter(factor =>
       suicideRiskFactors.some(riskFactor =>
-        natural.JaroWinklerDistance(factor.toLowerCase(), riskFactor.toLowerCase()) > 0.7
+        jaroWinklerLike(factor, riskFactor) > 0.7
       )
     );
 

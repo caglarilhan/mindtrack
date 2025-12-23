@@ -1,74 +1,82 @@
 "use client";
 
 import * as React from "react";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type ToastVariant = "success" | "error" | "info" | "warning";
-
-type ToastItem = {
-  id: string;
+export interface ToastProps {
+  id?: string;
   title?: string;
-  message: string;
-  variant: ToastVariant;
-  timeoutMs?: number;
-};
-
-type ToastContextValue = {
-  show: (message: string, options?: Partial<Omit<ToastItem, "id" | "message">>) => void;
-};
-
-const ToastContext = React.createContext<ToastContextValue | null>(null);
-
-export function useToast() {
-  const ctx = React.useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within <ToastProvider>");
-  return ctx;
+  description?: string;
+  variant?: "default" | "success" | "error" | "warning";
+  duration?: number;
+  onClose?: () => void;
 }
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = React.useState<ToastItem[]>([]);
-
-  const remove = (id: string) => setItems(prev => prev.filter(t => t.id !== id));
-
-  const show: ToastContextValue["show"] = (message, options) => {
-    const id = Math.random().toString(36).slice(2);
-    const item: ToastItem = {
-      id,
-      message,
-      variant: options?.variant ?? "info",
-      title: options?.title,
-      timeoutMs: options?.timeoutMs ?? 4000,
-    };
-    setItems(prev => [...prev, item]);
-    if (item.timeoutMs && item.timeoutMs > 0) {
-      window.setTimeout(() => remove(id), item.timeoutMs);
-    }
+export function Toast({ title, description, variant = "default", onClose }: ToastProps) {
+  const bgColors = {
+    default: "bg-gray-900",
+    success: "bg-green-600",
+    error: "bg-red-600",
+    warning: "bg-yellow-600",
   };
 
   return (
-    <ToastContext.Provider value={{ show }}>
-      {children}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
-        {items.map((t) => (
-          <div key={t.id} className={[
-              "w-80 rounded-lg shadow-lg border p-3 bg-white",
-              t.variant === "success" && "border-green-200",
-              t.variant === "error" && "border-red-200",
-              t.variant === "info" && "border-blue-200",
-              t.variant === "warning" && "border-yellow-200",
-            ].filter(Boolean).join(" ")}
+    <div
+      className={cn(
+        "rounded-lg shadow-lg p-4 text-white min-w-[300px] max-w-[500px]",
+        bgColors[variant]
+      )}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          {title && <div className="font-semibold mb-1">{title}</div>}
+          {description && <div className="text-sm opacity-90">{description}</div>}
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="ml-4 hover:opacity-70 transition-opacity"
           >
-            {t.title && (
-              <div className="text-sm font-semibold text-gray-900 mb-1">{t.title}</div>
-            )}
-            <div className="text-sm text-gray-700">{t.message}</div>
-            <div className="mt-2 text-right">
-              <button onClick={() => remove(t.id)} className="text-xs text-gray-500 hover:text-gray-700">Kapat</button>
-            </div>
-          </div>
-        ))}
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
-    </ToastContext.Provider>
+    </div>
   );
 }
 
+export function useToast() {
+  const [toasts, setToasts] = React.useState<ToastProps[]>([]);
 
+  const toast = React.useCallback((props: Omit<ToastProps, "id">) => {
+    const id = Math.random().toString(36).substring(7);
+    const newToast = { ...props, id };
+    
+    setToasts((prev) => [...prev, newToast]);
+
+    // Auto remove after duration
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, props.duration || 3000);
+  }, []);
+
+  return {
+    toast,
+    toasts,
+  };
+}
+
+export function ToastContainer({ toasts, onRemove }: { toasts: ToastProps[]; onRemove: (id: string) => void }) {
+  return (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {toasts.map((toast) => (
+        <Toast
+          key={toast.id}
+          {...toast}
+          onClose={() => toast.id && onRemove(toast.id)}
+        />
+      ))}
+    </div>
+  );
+}

@@ -1,11 +1,21 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Brain, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function SignUpPage() {
+  const router = useRouter();
+
+  const handleStartTrial = () => {
+    // Test için direkt rol seçim sayfasına git
+        window.location.href = "/pick-role";
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -61,7 +71,10 @@ export default function SignUpPage() {
               </select>
             </div>
 
-            <Button className="w-full bg-blue-600 hover:bg-blue-700">
+            <Button 
+              onClick={handleStartTrial}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
               Ücretsiz Deneme Başlat
             </Button>
             

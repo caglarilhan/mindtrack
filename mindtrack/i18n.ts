@@ -1,19 +1,10 @@
 import { notFound } from 'next/navigation';
+import { getRequestConfig } from 'next-intl/server';
 
-// Temporary shim: minimal getRequestConfig instead of next-intl/server
-type GetRequestConfigParams = { locale?: string };
-function getRequestConfig<T>(handler: (params: GetRequestConfigParams) => T | Promise<T>): (params: GetRequestConfigParams) => T | Promise<T> {
-  return handler;
-}
-
-// Supported languages - prioritizing American English and Spanish
 export const locales = ['en', 'es', 'tr', 'de'] as const;
 export type Locale = typeof locales[number];
+export const defaultLocale: Locale = 'tr';
 
-// Default language - American English
-export const defaultLocale: Locale = 'en';
-
-// Language information
 export const localeInfo = {
   en: { name: 'English (US)', flag: '🇺🇸', nativeName: 'English' },
   es: { name: 'Spanish', flag: '🇪🇸', nativeName: 'Español' },
@@ -22,11 +13,12 @@ export const localeInfo = {
 };
 
 export default getRequestConfig(async ({ locale }) => {
-  const currentLocale = (locale ?? defaultLocale);
-  if (!locales.includes(currentLocale as Locale)) notFound();
-
+  const current = (locale || defaultLocale) as Locale;
+  if (!locales.includes(current)) notFound();
   return {
-    locale: currentLocale,
-    messages: (await import(`./messages/${currentLocale}.json`)).default
+    locale: current,
+    messages: (await import(`./messages/${current}.json`)).default
   };
 });
+
+
